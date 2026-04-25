@@ -13,4 +13,4 @@ data/app.db
 pulso_da_live.db
 app/.continue/agents/new-agent.yaml
 start-claude.sh
-CLAUDE.md
+# CLAUDE.md
