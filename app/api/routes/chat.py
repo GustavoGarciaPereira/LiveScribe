@@ -34,8 +34,8 @@ def sentiment_analysis(live_id: str, service: ChatService = Depends(get_chat_ser
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     return SentimentResponse(
         live_id=live_id,
-        total_messages_analyzed=summary["total"],
-        sentiment_summary=summary["resumo"],
+        total_messages_analyzed=summary["total_messages"],
+        sentiment_summary=summary["sentiments"],
         library_used="Hugging Face Transformers",
         model=summary["model"],
     )

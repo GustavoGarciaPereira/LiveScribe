@@ -11,9 +11,8 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-# Run the development server
+# Run the development server (tabelas são criadas automaticamente na inicialização)
 uvicorn app.main:app --reload
 ```
 
@@ -21,117 +20,122 @@ Docs available at `http://localhost:8000/docs` after starting.
 
 ## Database
 
-The `startup` event that auto-creates tables is **commented out** in [app/main.py](app/main.py). The DB has already been initialized — `data/app.db` exists on disk (16 KB). To re-create from scratch:
+As tabelas são **criadas automaticamente** na inicialização via `@app.on_event("startup")` em [app/main.py](app/main.py) — não é mais necessário rodar comandos manuais.
 
-```python
-from app.infrastructure.database import Base, engine
-Base.metadata.create_all(bind=engine)
+O SQLite fica em `data/app.db`. Para recriar do zero, pare o servidor, delete o arquivo e reinicie:
+
+```bash
+rm data/app.db
+uvicorn app.main:app --reload
 ```
 
-The SQLite file is written to `data/app.db`.
-
-There are also two other SQLite databases from the old prototype:
-- `backend/pulso_da_live.db` (16 KB) — from `backend/` prototype
-- `pulso_da_live.db` (280 KB) — root-level, likely contains real/test data from the older version
+Há também outros bancos SQLite de versões antigas:
+- `backend/pulso_da_live.db` (16 KB) — do protótipo em `backend/`
+- `pulso_da_live.db` (280 KB) — raiz, pode conter dados de teste
 
 ## Repository overview
 
-The repo has **three** distinct components:
+O repo tem **três** componentes distintos:
 
 ### 1. `app/` — FastAPI backend (main codebase)
 
-Strict layered architecture:
+Arquitetura em camadas com injeção de dependência para o analisador de sentimento:
 
 | Layer | File | Role |
 |---|---|---|
-| Entry | `app/main.py` | App factory, CORS middleware, router registration, healthcheck. Startup event (`on_startup`) commented out. |
-| Config | `app/core/config.py` | Pydantic `Settings` via `pydantic-settings`, loads from `.env`. Defaults: `Chat Analytics API`, `0.1.0`, `/api`. |
-| Config | `app/core/stopwords.py` | `PORTUGUESE_STOPWORDS` — ~200 Portuguese stopwords for word-frequency filtering. |
-| Config | `app/core/logging.py` | **Empty file (0 bytes)** — never wired into the app. |
-| Infra | `app/infrastructure/database.py` | SQLAlchemy engine + `SessionLocal`. SQLite at `data/app.db`. Uses `check_same_thread=False`. |
-| Infra | `app/infrastructure/ml.py` | HuggingFace `pipeline` for `tabularisai/multilingual-sentiment-analysis`, cached via `@lru_cache`. |
-| Model | `app/models/message.py` | `Message` ORM: `id`, `live_id` (str, indexed), `author`, `message` (Text), `created_at` (datetime with tz). |
-| Repository | `app/repositories/messages.py` | `create_message()`, `list_messages_by_live()` — both straightforward SQLAlchemy queries. |
-| Schema | `app/schemas/chat.py` | Pydantic v2 models: `ChatMessage` (input), `MessageResponse` (with `from_attributes=True`), `WordFrequencyItem`/`WordFrequencyResponse`, `SentimentResponse`. |
-| DI | `app/api/deps.py` | `get_db()` — yields a `SessionLocal`, closes on teardown; `get_chat_service()` — instantiates `ChatService(db)`. |
-| Route | `app/api/routes/chat.py` | Three endpoints under `/api/chat/` (see below). |
-| Service | `app/services/chat.py` | `ChatService` — business logic. |
+| Entry | `app/main.py` | App factory, CORS, router, healthcheck. Startup cria as tabelas do DB automaticamente. |
+| Config | `app/core/config.py` | Pydantic `Settings` via `pydantic-settings`, carrega de `.env`. |
+| Config | `app/core/stopwords.py` | `PORTUGUESE_STOPWORDS` — ~200 stopwords para filtragem de frequência. |
+| Config | `app/core/logging.py` | **Vazio (0 bytes)** — nunca configurado. |
+| Infra | `app/infrastructure/database.py` | SQLAlchemy engine + `SessionLocal`. SQLite em `data/app.db`. |
+| Model | `app/models/message.py` | `Message` ORM: `id`, `live_id`, `author`, `message`, `created_at`. |
+| Repository | `app/repositories/messages.py` | `create_message()`, `list_messages_by_live()`. |
+| Schema | `app/schemas/chat.py` | Pydantic v2: `ChatMessage`, `MessageResponse`, `WordFrequencyItem/Response`, `SentimentResponse`. |
+| Service | `app/services/sentiment.py` | **Interface** `SentimentAnalyzer` (ABC) + implementação `LeiaSentimentAnalyzer` (léxico LeIA). |
+| Service | `app/services/chat.py` | `ChatService` — recebe um `SentimentAnalyzer` por injeção de dependência. |
+| DI | `app/api/deps.py` | `get_db()` + `get_chat_service()` — instancia `LeiaSentimentAnalyzer` e injeta no `ChatService`. |
+| Route | `app/api/routes/chat.py` | Três endpoints sob `/api/chat/` (ver abaixo). |
 
 #### Endpoints
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/` | Healthcheck → `{"status": "online"}` |
-| `POST` | `/api/chat/messages` | Save a message. Body: `{live_id, author, message}` → `MessageResponse` |
-| `GET` | `/api/chat/{live_id}/word-frequency?top_n=10` | Top-N words (stopwords removed) |
-| `GET` | `/api/chat/{live_id}/sentiment` | Sentiment analysis summary (currently **broken**, see known issues) |
+| `POST` | `/api/chat/messages` | Salva mensagem. Body: `{live_id, author, message}` |
+| `GET` | `/api/chat/{live_id}/word-frequency?top_n=10` | Top-N palavras (stopwords removidas) |
+| `GET` | `/api/chat/{live_id}/sentiment` | Análise de sentimento via LeIA (VADER pt-BR) — **funcional** |
 
 ### 2. `frontend/` — Chrome extension (PulsoDaLive)
 
-Manifest v3 extension that injects into YouTube live pages.
+Manifest v3 que injeta em páginas de live do YouTube.
 
 | File | Role |
 |---|---|
-| `manifest.json` | v3 manifest. Matches `*://www.youtube.com/watch?v=*`. Host permission to `http://127.0.0.1:8000/*`. |
-| `content.js` | **Active version (v4)**. Finds `#chatframe` iframe, waits for load, observes `#items.yt-live-chat-item-list-renderer` for new DOM nodes. POSTs author + message + `live_id` (from URL) to `http://127.0.0.1:8000/save-message`. |
-| `bb.js` | **Older version (v1)** of content.js. Still present but unused. |
+| `manifest.json` | v3. Match `*://www.youtube.com/watch?v=*`. Host permission `http://127.0.0.1:8000/*`. |
+| `content.js` | **Versão ativa (v4)**. Extrai `liveId` da URL (`window.top.location`), observa `#chatframe` via MutationObserver, POST para `/api/chat/messages`. |
+| `bb.js` | Versão antiga (v1) — não utilizada. |
 
-**Note:** The extension POSTs to `/save-message` but the actual API route is `POST /api/chat/messages` — these are **mismatched**. The extension will get a 404.
+### 3. `backend/` — Protótipo antigo (inativo)
 
-### 3. `backend/` — Older prototype (inactive)
+FastAPI monolithic com tudo inline. Contém seu próprio `database.py`, `models.py` e dados dumpados em arquivos `.txt`/`.json`.
 
-A monolithic FastAPI prototype with all logic inline (no layered architecture). Files:
-- `backend/main.py` — Everything in one file: models, routes, CORS, DB.
-- `backend/database.py` — Its own SQLAlchemy engine, writes to `backend/pulso_da_live.db`.
-- `backend/models.py` — `Message` ORM with slightly different schema (`timestamp` vs `created_at`, uses `server_default=func.now()`).
-- Various `chat_log.txt`, `chat_data.json` files — captured data dumps.
+## Histórico de mudanças recentes
 
-## Known bugs and incomplete areas
+### Tarefa 1 — Corrigir extensão Chrome
+- **URL corrigida**: `/save-message` → `/api/chat/messages` no `content.js`
+- **Escopo do `liveId`**: movido para dentro de `startMonitoring()` com `window.top.location` + fallback, eliminando `ReferenceError`
+- **Debug logs removidos**: consoles poluentes deletados
 
-### Sentiment analysis is broken (not just stubbed)
+### Tarefa 2 — Análise de sentimento com LeIA
+- **`app/services/sentiment.py`** (novo): interface `SentimentAnalyzer` (ABC) + `LeiaSentimentAnalyzer`
+- **`app/services/chat.py`**: reescrito para usar `SentimentAnalyzer` via DI, sem dependência de HuggingFace
+- **`app/api/deps.py`**: injeta `LeiaSentimentAnalyzer()` no `ChatService`
+- **`app/api/routes/chat.py`**: consome novo formato de retorno (`total_messages`, `sentiments`)
+- **`app/infrastructure/ml.py`**: removido (não usado)
+- **`app/main.py`**: import do `ml.py` removido; **startup event ativado** para criar tabelas automaticamente
+- **`requirements.txt`**: adicionado `leia-br`
 
-In `app/services/chat.py`:
-- The ML pipeline import and initialization are **commented out** (`# from app.infrastructure.ml import get_sentiment_pipeline`)
-- `results = texts` assigns the raw string list to `results` — the next line `result["label"]` would raise **`TypeError: string indices must be integers`** on any non-empty live
-- `summary["resumo"]` would also raise **`KeyError`** — the dict has keys `"Positivo"`, `"Negativo"`, `"Neutro"`, not `"resumo"`
-- The model name field is a placeholder: `lct-big-science/bertimbau-base-sentiment-analysis-portuguese` (this model doesn't exist on HuggingFace)
+## Known bugs
 
-**Result:** The `GET /{live_id}/sentiment` endpoint crashes with an unhandled exception for any live that has messages.
+### `word_frequency` chama o service duas vezes
 
-### `word_frequency` calls the service twice
+Em `app/api/routes/chat.py`:
+- Linha 17: `freq = service.word_frequency(live_id, top_n)` — resultado descartado
+- Linha 20: `freq_tuples = service.word_frequency(live_id, top_n)` — resultado usado
+- A primeira chamada é dead code que duplica trabalho no DB.
 
-In `app/api/routes/chat.py`:
-- Line 17: `freq = service.word_frequency(live_id, top_n)` — result discarded
-- Line 20: `freq_tuples = service.word_frequency(live_id, top_n)` — actual result used
-- The first call is dead code that duplicates DB work.
+### `app/core/logging.py` está vazio
 
-### Extension-to-API URL mismatch
+0 bytes. Nenhum logger configurado.
 
-The Chrome extension (`content.js`) sends POST to `http://127.0.0.1:8000/save-message`. The actual route is `POST /api/chat/messages` under the `/api` prefix. The payload shape (author, message, live_id) matches the `ChatMessage` schema, so only the URL needs fixing.
+### Sem suíte de testes
 
-### DB auto-creation on startup is disabled
+Nenhum teste no repositório.
 
-The `@app.on_event("startup")` block in `app/main.py` that calls `Base.metadata.create_all(bind=engine)` and preloads the sentiment pipeline is **fully commented out**.
+## Arquitetura: Análise de Sentimento (desacoplada)
 
-### `app/core/logging.py` is empty
-
-The file exists but is 0 bytes. No logger is configured anywhere in the app.
-
-### No test suite
-
-No tests exist anywhere in the repo. The README recommends using `TestClient` (FastAPI) for endpoint tests and unit tests for services/repositories.
-
-### `requirements.txt` has torch commented out
+O sistema segue **Interface + Injeção de Dependência**:
 
 ```
-#pip install torch==2.2.0+cpu --index-url https://download.pytorch.org/whl/cpu
-#torch
+┌─────────────────────┐
+│  SentimentAnalyzer  │  ← ABC (abstract method `analyze`)
+│  (services/sentiment│
+│   .py)              │
+└─────────┬───────────┘
+          │ implementa
+┌─────────▼───────────┐
+│ LeiaSentimentAnalyzer│  ← LeIA (VADER pt-BR), leve, sem GPU
+└─────────┬───────────┘
+          │ injetado em
+┌─────────▼───────────┐
+│    ChatService       │  ← acoplado à interface, não à implementação
+└─────────────────────┘
 ```
-Torch is needed for `transformers` but isn't auto-installed — developer must install manually.
 
-### Model mismatch in ML config
-
-`app/infrastructure/ml.py` lists `tabularisai/multilingual-sentiment-analysis` but `app/services/chat.py` hardcodes `lct-big-science/bertimbau-base-sentiment-analysis-portuguese` in the response. The sentiment service also references a `label_map` mapping `"1 star" → Negativo`, `"3 stars" → Neutro`, `"5 stars" → Positivo` — this mapping corresponds to the **tabularisai** model's output, not the hardcoded one.
+Para trocar de analisador no futuro:
+1. Crie uma nova classe que implemente `SentimentAnalyzer`
+2. Em `app/api/deps.py`, troque `LeiaSentimentAnalyzer()` pela nova classe
+3. O `ChatService` e os endpoints não precisam ser alterados
 
 ## Environment variables
 
@@ -142,8 +146,6 @@ PROJECT_NAME=Chat Analytics API
 VERSION=0.1.0
 API_PREFIX=/api
 ```
-
-Full settings with defaults:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -158,10 +160,10 @@ Full settings with defaults:
 | `CORS_ALLOW_METHODS` | `["*"]` | CORS methods |
 | `CORS_ALLOW_HEADERS` | `["*"]` | CORS headers |
 
-## Oddities / minor findings
+## Oddities
 
-- `app/api/__init__.py` and `app/infrastructure/__init__.py` are **missing** — the packages still work via implicit namespace packages (Python 3.3+), but explicit `__init__.py` files are conventional.
-- `app/.github/` is an **empty directory** — likely a leftover from GitHub template generation.
-- `app/.continue/agents/new-agent.yaml` is an **example agent config** for the Continue.dev IDE extension (gitignored).
-- `.vscode/settings.json` and `app/.vscode/settings.json` both contain only `{"nuxt.isNuxtApp": false}` — unrelated Nuxt.js setting.
-- `start-claude.sh` is a commented-out script to run Claude Code CLI with Ollama API — not intended for normal use.
+- `app/api/__init__.py` e `app/infrastructure/__init__.py` estão faltando (namespace packages implícitos desde Python 3.3)
+- `app/.github/` é um diretório vazio
+- `app/.continue/agents/new-agent.yaml` é config exemplo do Continue.dev (gitignored)
+- Arquivos `.vscode/settings.json` contêm `{"nuxt.isNuxtApp": false}` — config irrelevante
+- `start-claude.sh` é um script comentado para rodar Claude Code via Ollama

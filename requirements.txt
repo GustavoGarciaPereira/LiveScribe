@@ -4,5 +4,6 @@ sqlalchemy
 pydantic
 pydantic-settings
 transformers
+leia-br
 #pip install torch==2.2.0+cpu --index-url https://download.pytorch.org/whl/cpu
 #torch

@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.chat import router as chat_router
 from app.core.config import settings
 from app.infrastructure.database import Base, engine
-from app.infrastructure.ml import get_sentiment_pipeline
 
 
 def create_application() -> FastAPI:
@@ -36,8 +35,6 @@ def create_application() -> FastAPI:
 app = create_application()
 
 
-# @app.on_event("startup")
-# async def on_startup() -> None:
-#     Base.metadata.create_all(bind=engine)
-#     # Carrega o pipeline de sentimento uma única vez na inicialização.
-#     get_sentiment_pipeline()
+@app.on_event("startup")
+async def on_startup() -> None:
+    Base.metadata.create_all(bind=engine)
