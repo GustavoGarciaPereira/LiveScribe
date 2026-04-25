@@ -12,15 +12,9 @@ def save_message(payload: ChatMessage, service: ChatService = Depends(get_chat_s
 
 @router.get("/{live_id}/word-frequency", response_model=WordFrequencyResponse)
 def word_frequency(live_id: str, top_n: int = 10, service: ChatService = Depends(get_chat_service)):
-    freq = service.word_frequency(live_id, top_n)
-    
-    
-    
-    
-    
-    if freq is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     freq_tuples = service.word_frequency(live_id, top_n)
+    if not freq_tuples:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     items = [
         WordFrequencyItem(palavra=word, frequencia=count)
         for word, count in freq_tuples
