@@ -1,3 +1,16 @@
 __pycache__/
 *.pyc
 .vscode/
+frontend/manifest.json
+backend/*.txt
+backend/chat_data copy.json
+backend/chat_data.json
+chat_log.txt
+chat_data.json
+plano
+backend/pulso_da_live.db
+data/app.db
+pulso_da_live.db
+app/.continue/agents/new-agent.yaml
+start-claude.sh
+CLAUDE.md
