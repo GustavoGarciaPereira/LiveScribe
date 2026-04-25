@@ -2,6 +2,26 @@ console.log("PulsoDaLive v4 - content.js injetado e ativo.");
 
 // Função que contém a lógica principal de monitoramento
 function startMonitoring(chatDocument) {
+    // Extrai o live_id da URL da janela principal (uma vez só, no escopo da função)
+    let liveId = null;
+    try {
+        const url = new URL(window.top.location.href);
+        if (url.pathname.startsWith('/live/')) {
+            liveId = url.pathname.split('/')[2];
+        } else if (url.pathname === '/watch') {
+            liveId = url.searchParams.get('v');
+        }
+    } catch (e) {
+        // Fallback: se não conseguir acessar window.top, tenta a própria window
+        const url = new URL(window.location.href);
+        if (url.pathname.startsWith('/live/')) {
+            liveId = url.pathname.split('/')[2];
+        } else if (url.pathname === '/watch') {
+            liveId = url.searchParams.get('v');
+        }
+    }
+    console.log('[DEBUG] liveId extraído:', liveId);
+
     const chatContainerSelector = "#items.yt-live-chat-item-list-renderer";
     const chatContainer = chatDocument.querySelector(chatContainerSelector);
 
@@ -21,21 +41,12 @@ function startMonitoring(chatDocument) {
                 const messageElement = node.querySelector("#message");
 
                 if (authorElement && messageElement) {
-                    // O live_id ainda é pego da URL da janela principal (top window)
-                    let liveId = null;
-                    const url = new URL(window.location.href);
-                    if (url.pathname.startsWith('/live/')) {
-                        liveId = url.pathname.split('/')[2];
-                    } else if (url.pathname === '/watch') {
-                        liveId = url.searchParams.get('v');
-                    }
-
                     const author = authorElement.textContent.trim();
                     const message = messageElement.textContent.trim();
 
                     if (author && message && liveId) {
                         console.log(`%c[DADO VÁLIDO] Live ID: ${liveId}, Autor: ${author}`, 'color: green');
-                        fetch('http://127.0.0.1:8000/save-message', {
+                        fetch('http://127.0.0.1:8000/api/chat/messages', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ author, message, live_id: liveId }),
@@ -63,7 +74,6 @@ function initializeChatMonitor() {
     }
 
     console.log("PulsoDaLive: Iframe do chat encontrado!");
-
     // Checa se o iframe já carregou seu conteúdo
     if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
         console.log("PulsoDaLive: O conteúdo do iframe já estava carregado. Iniciando monitoramento.");
