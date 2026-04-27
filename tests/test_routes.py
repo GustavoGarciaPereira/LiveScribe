@@ -87,3 +87,117 @@ class TestSentiment:
         response = client.get("/api/chat/live1/sentiment")
         assert response.status_code == 500
         assert "detail" in response.json()
+
+
+class TestPlatform:
+    def test_default_platform(self, client):
+        response = client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "Teste"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["platform"] == "youtube"
+
+    def test_explicit_platform(self, client):
+        response = client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "Teste", "platform": "twitch"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["platform"] == "twitch"
+
+
+class TestListLives:
+    def test_with_data(self, client):
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "M1"},
+        )
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "B", "message": "M2"},
+        )
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live2", "author": "C", "message": "M3"},
+        )
+
+        response = client.get("/api/chat/lives")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_lives"] == 2
+        lives = data["lives"]
+        assert lives[0]["live_id"] == "live2"  # mais recente primeiro
+        assert lives[0]["total_messages"] == 1
+
+    def test_empty(self, client):
+        response = client.get("/api/chat/lives")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_lives"] == 0
+        assert data["lives"] == []
+
+
+class TestSentimentTimeline:
+    def test_with_data(self, client):
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "Que incrível!"},
+        )
+        response = client.get("/api/chat/live1/sentiment-timeline?interval_minutes=5")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["live_id"] == "live1"
+        assert data["interval_minutes"] == 5
+        assert len(data["timeline"]) >= 1
+        assert "sentiments" in data["timeline"][0]
+
+    def test_empty(self, client):
+        response = client.get("/api/chat/vazia/sentiment-timeline")
+        assert response.status_code == 404
+
+    def test_custom_interval(self, client):
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "Teste"},
+        )
+        response = client.get("/api/chat/live1/sentiment-timeline?interval_minutes=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["interval_minutes"] == 10
+
+
+class TestEngagementPeaks:
+    def test_with_data(self, client):
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "Teste"},
+        )
+        response = client.get("/api/chat/live1/engagement-peaks?top_n=3")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["live_id"] == "live1"
+        assert isinstance(data["peaks"], list)
+
+    def test_empty(self, client):
+        response = client.get("/api/chat/vazia/engagement-peaks")
+        assert response.status_code == 404
+
+
+class TestTopics:
+    def test_with_data(self, client):
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "live incrível"},
+        )
+        response = client.get("/api/chat/live1/topics?top_n=5")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["live_id"] == "live1"
+        assert isinstance(data["topics"], list)
+
+    def test_empty(self, client):
+        response = client.get("/api/chat/vazia/topics")
+        assert response.status_code == 404

@@ -49,7 +49,7 @@ function startMonitoring(chatDocument) {
                         fetch('http://127.0.0.1:8000/api/chat/messages', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ author, message, live_id: liveId }),
+                            body: JSON.stringify({ author, message, live_id: liveId, platform: "youtube" }),
                         })
                         .then(response => response.json())
                         .then(data => console.log('%c[RESPOSTA API]', 'color: blue', data))

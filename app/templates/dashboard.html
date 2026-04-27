@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulsoDaLive — Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
+        h1 { margin-bottom: 1rem; }
+        select { padding: 0.5rem 1rem; font-size: 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
+        .card { background: #1e293b; border-radius: 10px; padding: 1.5rem; }
+        .card h2 { margin-bottom: 1rem; font-size: 1.1rem; color: #94a3b8; }
+        canvas { max-height: 300px; }
+    </style>
+</head>
+<body>
+    <h1>📊 PulsoDaLive — Dashboard</h1>
+
+    <label for="live-select">Selecione uma live:</label>
+    <select id="live-select">
+        <option value="">-- Carregando lives... --</option>
+    </select>
+
+    <div class="grid">
+        <div class="card">
+            <h2>📈 Sentimentos ao longo do tempo</h2>
+            <canvas id="timeline-chart"></canvas>
+        </div>
+        <div class="card">
+            <h2>🔥 Picos de engajamento</h2>
+            <canvas id="peaks-chart"></canvas>
+        </div>
+        <div class="card">
+            <h2>🔤 Frequência de palavras</h2>
+            <canvas id="words-chart"></canvas>
+        </div>
+        <div class="card">
+            <h2>🧠 Tópicos (TF-IDF)</h2>
+            <canvas id="topics-chart"></canvas>
+        </div>
+    </div>
+
+<script>
+const API = '/api/chat';
+
+let timelineChart, peaksChart, wordsChart, topicsChart;
+
+async function loadLives() {
+    const res = await fetch(`${API}/lives`);
+    const data = await res.json();
+    const select = document.getElementById('live-select');
+    select.innerHTML = '<option value="">-- Selecione uma live --</option>';
+    data.lives.forEach(l => {
+        select.innerHTML += `<option value="${l.live_id}">${l.live_id} (${l.total_messages} msgs)</option>`;
+    });
+}
+
+document.getElementById('live-select').addEventListener('change', async (e) => {
+    const liveId = e.target.value;
+    if (!liveId) return;
+    await Promise.all([
+        loadTimeline(liveId),
+        loadPeaks(liveId),
+        loadWords(liveId),
+        loadTopics(liveId),
+    ]);
+});
+
+async function loadTimeline(liveId) {
+    const res = await fetch(`${API}/${liveId}/sentiment-timeline?interval_minutes=5`);
+    const data = await res.json();
+    const labels = data.timeline.map(b => b.start_time.slice(11,16));
+    const pos = data.timeline.map(b => b.sentiments.Positivo);
+    const neg = data.timeline.map(b => b.sentiments.Negativo);
+    const neu = data.timeline.map(b => b.sentiments.Neutro);
+    if (timelineChart) timelineChart.destroy();
+    timelineChart = new Chart(document.getElementById('timeline-chart'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Positivo', data: pos, borderColor: '#22c55e', fill: false },
+                { label: 'Negativo', data: neg, borderColor: '#ef4444', fill: false },
+                { label: 'Neutro',   data: neu, borderColor: '#94a3b8', fill: false },
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+}
+
+async function loadPeaks(liveId) {
+    const res = await fetch(`${API}/${liveId}/engagement-peaks?top_n=10&window_minutes=1`);
+    const data = await res.json();
+    const labels = data.peaks.map(p => p.time.slice(11,16));
+    const counts = data.peaks.map(p => p.message_count);
+    if (peaksChart) peaksChart.destroy();
+    peaksChart = new Chart(document.getElementById('peaks-chart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{ label: 'Mensagens', data: counts, backgroundColor: '#f97316' }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+}
+
+async function loadWords(liveId) {
+    const res = await fetch(`${API}/${liveId}/word-frequency?top_n=10`);
+    const data = await res.json();
+    const labels = data.word_frequency.map(w => w.palavra);
+    const counts = data.word_frequency.map(w => w.frequencia);
+    if (wordsChart) wordsChart.destroy();
+    wordsChart = new Chart(document.getElementById('words-chart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{ label: 'Frequência', data: counts, backgroundColor: '#3b82f6' }]
+        },
+        options: { responsive: true, indexAxis: 'y' }
+    });
+}
+
+async function loadTopics(liveId) {
+    const res = await fetch(`${API}/${liveId}/topics?top_n=10`);
+    const data = await res.json();
+    const labels = data.topics.map(t => t.term);
+    const scores = data.topics.map(t => t.score);
+    if (topicsChart) topicsChart.destroy();
+    topicsChart = new Chart(document.getElementById('topics-chart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{ label: 'Score TF-IDF', data: scores, backgroundColor: '#8b5cf6' }]
+        },
+        options: { responsive: true, indexAxis: 'y' }
+    });
+}
+
+loadLives();
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.infrastructure.database import SessionLocal
 from app.services.chat import ChatService
 from app.services.sentiment import LeiaSentimentAnalyzer
+from app.services.topics import TfidfTopicExtractor
 
 
 def get_db():
@@ -16,4 +17,5 @@ def get_db():
 
 def get_chat_service(db: Session = Depends(get_db)) -> ChatService:
     analyzer = LeiaSentimentAnalyzer()
-    return ChatService(db, analyzer)
+    topic_extractor = TfidfTopicExtractor()
+    return ChatService(db, analyzer, topic_extractor)

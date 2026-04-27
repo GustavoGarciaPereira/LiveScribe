@@ -45,10 +45,23 @@ def mock_analyzer():
     return analyzer
 
 
+# ── Extrator de tópicos mockado ───────────────────────────────
+
+@pytest.fixture
+def mock_topic_extractor():
+    """Retorna um TopicExtractor mockado."""
+    extractor = MagicMock()
+    extractor.extract.return_value = [
+        {"term": "live", "score": 0.95},
+        {"term": "incrivel", "score": 0.72},
+    ]
+    return extractor
+
+
 # ── Cliente HTTP para testes de rota ──────────────────────────
 
 @pytest.fixture
-def client(db_session, mock_analyzer):
+def client(db_session, mock_analyzer, mock_topic_extractor):
     """Cliente de teste com dependências sobrescritas."""
     def override_get_db():
         try:
@@ -57,7 +70,7 @@ def client(db_session, mock_analyzer):
             pass
 
     def override_get_chat_service():
-        return ChatService(db_session, mock_analyzer)
+        return ChatService(db_session, mock_analyzer, mock_topic_extractor)
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_chat_service] = override_get_chat_service

@@ -81,3 +81,90 @@ def test_leia_analyzer_multiple():
     ]
     result = analyzer.analyze(texts)
     assert sum(result.values()) == 3
+
+
+# ── Testes dos novos métodos do ChatService ────────────────────
+
+
+def test_list_lives(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    svc.save_message("live1", "A", "msg1")
+    svc.save_message("live1", "B", "msg2")
+    svc.save_message("live2", "C", "msg3")
+
+    lives = svc.list_lives()
+    assert len(lives) == 2
+    assert lives[0]["live_id"] in ("live1", "live2")
+    assert lives[0]["total_messages"] > 0
+
+
+def test_list_lives_empty(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    lives = svc.list_lives()
+    assert lives == []
+
+
+def test_sentiment_timeline(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    svc.save_message("live1", "A", "Que live boa!")
+    svc.save_message("live1", "B", "Muito bom!")
+
+    result = svc.sentiment_timeline("live1", interval_minutes=5)
+    assert result is not None
+    assert result["live_id"] == "live1"
+    assert len(result["timeline"]) > 0
+    bucket = result["timeline"][0]
+    assert "sentiments" in bucket
+    assert bucket["total_messages"] == 2
+
+
+def test_sentiment_timeline_empty(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    result = svc.sentiment_timeline("vazia")
+    assert result is None
+
+
+def test_engagement_peaks(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    svc.save_message("live1", "A", "msg1")
+    svc.save_message("live1", "B", "msg2")
+
+    result = svc.engagement_peaks("live1", top_n=5, window_minutes=1)
+    assert result is not None
+    assert result["live_id"] == "live1"
+    assert len(result["peaks"]) > 0
+
+
+def test_engagement_peaks_empty(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    result = svc.engagement_peaks("vazia")
+    assert result is None
+
+
+def test_extract_topics(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    svc.save_message("live1", "A", "Que live incrível!")
+
+    result = svc.extract_topics("live1", top_n=10)
+    assert result is not None
+    assert result["live_id"] == "live1"
+    assert len(result["topics"]) == 2
+    assert result["topics"][0]["term"] == "live"
+
+
+def test_extract_topics_empty(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    result = svc.extract_topics("vazia")
+    assert result is None
+
+
+def test_platform_default(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    msg = svc.save_message("live1", "A", "msg")
+    assert msg.platform == "youtube"
+
+
+def test_platform_explicit(db_session, mock_analyzer, mock_topic_extractor):
+    svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
+    msg = svc.save_message("live1", "A", "msg", platform="twitch")
+    assert msg.platform == "twitch"

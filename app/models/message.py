@@ -11,6 +11,7 @@ class Message(Base):
     live_id = Column(String(255), index=True, nullable=False)
     author = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
+    platform = Column(String(50), nullable=False, default="youtube")
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
