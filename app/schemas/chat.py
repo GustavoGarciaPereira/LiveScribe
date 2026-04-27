@@ -1,14 +1,14 @@
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChatMessage(BaseModel):
     """Payload recebido ao salvar uma nova mensagem."""
-    live_id: str = Field(..., example="live-123")
-    author: str = Field(..., example="joao_silva")
-    message: str = Field(..., example="Gostei demais dessa live!")
+    live_id: str = Field(..., json_schema_extra={"example": "live-123"})
+    author: str = Field(..., json_schema_extra={"example": "joao_silva"})
+    message: str = Field(..., json_schema_extra={"example": "Gostei demais dessa live!"})
 
 
 class MessageResponse(BaseModel):
@@ -17,7 +17,7 @@ class MessageResponse(BaseModel):
     live_id: str
     author: str
     message: str
-    created_at: datetime | None = None
+    created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

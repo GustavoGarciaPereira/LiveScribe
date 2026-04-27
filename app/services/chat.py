@@ -1,5 +1,7 @@
 from collections import Counter
 import re
+from typing import Optional
+
 from app.core.stopwords import PORTUGUESE_STOPWORDS
 from app.repositories.messages import create_message, list_messages_by_live
 from app.services.sentiment import SentimentAnalyzer
@@ -27,16 +29,12 @@ class ChatService:
 
         return Counter(all_words).most_common(top_n)
 
-    def sentiment_summary(self, live_id: str) -> dict:
+    def sentiment_summary(self, live_id: str) -> Optional[dict]:
         messages = list_messages_by_live(self.db, live_id)
         texts = [m.message for m in messages]
 
         if not texts:
-            return {
-                "model": "LeIA (VADER adaptado para português)",
-                "sentiments": {"Positivo": 0, "Negativo": 0, "Neutro": 0},
-                "total_messages": 0,
-            }
+            return None
 
         sentiments = self.sentiment_analyzer.analyze(texts)
 

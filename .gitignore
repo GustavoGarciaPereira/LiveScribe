@@ -14,3 +14,6 @@ pulso_da_live.db
 app/.continue/agents/new-agent.yaml
 start-claude.sh
 # CLAUDE.md
+data/app (copy).db
+REASONIX.md
+venv

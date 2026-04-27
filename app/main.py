@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,12 +9,18 @@ from app.infrastructure.database import Base, engine
 
 
 def create_application() -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        Base.metadata.create_all(bind=engine)
+        yield
+
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
         docs_url=settings.DOCS_URL,
         redoc_url=settings.REDOC_URL,
         openapi_url=settings.OPENAPI_URL,
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -33,8 +41,3 @@ def create_application() -> FastAPI:
 
 
 app = create_application()
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)

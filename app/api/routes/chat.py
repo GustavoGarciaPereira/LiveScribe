@@ -8,7 +8,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.post("/messages", response_model=MessageResponse)
 def save_message(payload: ChatMessage, service: ChatService = Depends(get_chat_service)):
     message = service.save_message(payload.live_id, payload.author, payload.message)
-    return MessageResponse.from_orm(message)
+    return MessageResponse.model_validate(message)
 
 @router.get("/{live_id}/word-frequency", response_model=WordFrequencyResponse)
 def word_frequency(live_id: str, top_n: int = 10, service: ChatService = Depends(get_chat_service)):

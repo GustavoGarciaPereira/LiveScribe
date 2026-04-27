@@ -1,3 +1,4 @@
+from typing import List
 from sqlalchemy.orm import Session
 from app.models.message import Message
 
@@ -8,7 +9,7 @@ def create_message(db: Session, *, live_id: str, author: str, content: str) -> M
     db.refresh(db_message)
     return db_message
 
-def list_messages_by_live(db: Session, live_id: str) -> list[Message]:
+def list_messages_by_live(db: Session, live_id: str) -> List[Message]:
     return (
         db.query(Message)
           .filter(Message.live_id == live_id)
