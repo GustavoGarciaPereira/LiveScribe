@@ -1,6 +1,5 @@
 from collections import Counter
 import re
-from typing import Optional
 
 from app.core.stopwords import PORTUGUESE_STOPWORDS
 from app.repositories.messages import create_message, list_messages_by_live
@@ -29,7 +28,7 @@ class ChatService:
 
         return Counter(all_words).most_common(top_n)
 
-    def sentiment_summary(self, live_id: str) -> Optional[dict]:
+    def sentiment_summary(self, live_id: str) -> dict | None:
         messages = list_messages_by_live(self.db, live_id)
         texts = [m.message for m in messages]
 

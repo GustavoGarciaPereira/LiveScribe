@@ -67,6 +67,21 @@ Acesse a documentação interativa em http://127.0.0.1:8000/docs
 Atualmente utiliza o **LeIA** (Léxico VADER adaptado para português).
 A interface `SentimentAnalyzer` em `app/services/sentiment.py` permite trocar facilmente a implementação.
 
+## Testes
+
+```bash
+# Instalar dependências de teste
+pip install pytest pytest-cov httpx
+
+# Executar todos os testes com cobertura
+pytest -v --cov=app --cov-report=term-missing
+
+# Executar apenas um arquivo
+pytest tests/test_routes.py -v
+```
+
+Cobertura atual: 90% (27+ testes passando).
+
 ## Próximos passos
 
 - Linha do tempo de sentimentos

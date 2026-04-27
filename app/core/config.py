@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import List, Optional
+
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,14 +12,14 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     API_PREFIX: str = "/api"
 
-    DOCS_URL: Optional[str] = "/docs"
-    REDOC_URL: Optional[str] = "/redoc"
-    OPENAPI_URL: Optional[str] = "/openapi.json"
+    DOCS_URL: str | None = "/docs"
+    REDOC_URL: str | None = "/redoc"
+    OPENAPI_URL: str | None = "/openapi.json"
 
-    CORS_ALLOW_ORIGINS: List[str] = Field(default_factory=lambda: ["*"])
+    CORS_ALLOW_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = Field(default_factory=lambda: ["*"])
-    CORS_ALLOW_HEADERS: List[str] = Field(default_factory=lambda: ["*"])
+    CORS_ALLOW_METHODS: list[str] = Field(default_factory=lambda: ["*"])
+    CORS_ALLOW_HEADERS: list[str] = Field(default_factory=lambda: ["*"])
 
 
 @lru_cache(maxsize=1)

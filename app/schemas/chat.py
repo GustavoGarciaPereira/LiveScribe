@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,7 +16,7 @@ class MessageResponse(BaseModel):
     live_id: str
     author: str
     message: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -28,12 +27,12 @@ class WordFrequencyItem(BaseModel):
 
 class WordFrequencyResponse(BaseModel):
     live_id: str
-    word_frequency: List[WordFrequencyItem]
+    word_frequency: list[WordFrequencyItem]
 
 
 class SentimentResponse(BaseModel):
     live_id: str
     total_messages_analyzed: int
-    sentiment_summary: Dict[str, int]
+    sentiment_summary: dict[str, int]
     library_used: str
     model: str

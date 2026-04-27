@@ -56,3 +56,28 @@ def test_sentiment_summary_empty(db_session, mock_analyzer):
     svc = ChatService(db_session, mock_analyzer)
     result = svc.sentiment_summary("vazia")
     assert result is None
+
+
+# ── Testes do analisador real (LeIA) ──────────────────────────
+
+from app.services.sentiment import LeiaSentimentAnalyzer
+
+
+def test_leia_analyzer_positive():
+    analyzer = LeiaSentimentAnalyzer()
+    result = analyzer.analyze(["Que live maravilhosa! Incrível!"])
+    assert result["Positivo"] >= 0
+    assert result["Negativo"] >= 0
+    assert result["Neutro"] >= 0
+    assert sum(result.values()) == 1
+
+
+def test_leia_analyzer_multiple():
+    analyzer = LeiaSentimentAnalyzer()
+    texts = [
+        "Estou muito feliz!",
+        "Que raiva disso!",
+        "Ok, tanto faz."
+    ]
+    result = analyzer.analyze(texts)
+    assert sum(result.values()) == 3

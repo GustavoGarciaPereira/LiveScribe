@@ -17,3 +17,4 @@ start-claude.sh
 data/app (copy).db
 REASONIX.md
 venv
+.coverage

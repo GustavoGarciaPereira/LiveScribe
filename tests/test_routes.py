@@ -76,3 +76,14 @@ class TestSentiment:
     def test_404_when_no_messages(self, client):
         response = client.get("/api/chat/vazia/sentiment")
         assert response.status_code == 404
+
+    def test_internal_server_error(self, client, mock_analyzer):
+        """Simula erro 500 forçando falha no analisador de sentimento."""
+        mock_analyzer.analyze.side_effect = RuntimeError("Falha simulada")
+        client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "Teste"},
+        )
+        response = client.get("/api/chat/live1/sentiment")
+        assert response.status_code == 500
+        assert "detail" in response.json()

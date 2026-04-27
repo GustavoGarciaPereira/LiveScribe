@@ -23,7 +23,10 @@ def word_frequency(live_id: str, top_n: int = 10, service: ChatService = Depends
 
 @router.get("/{live_id}/sentiment", response_model=SentimentResponse)
 def sentiment_analysis(live_id: str, service: ChatService = Depends(get_chat_service)):
-    summary = service.sentiment_summary(live_id)
+    try:
+        summary = service.sentiment_summary(live_id)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     if summary is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     return SentimentResponse(

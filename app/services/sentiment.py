@@ -1,12 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List
 
 
 class SentimentAnalyzer(ABC):
     """Interface para analisadores de sentimento."""
 
     @abstractmethod
-    def analyze(self, texts: List[str]) -> Dict[str, int]:
+    def analyze(self, texts: list[str]) -> dict[str, int]:
         """
         Analisa uma lista de textos e retorna contagem de sentimentos.
         Deve retornar um dicionário com chaves 'Positivo', 'Negativo', 'Neutro'.
@@ -21,7 +20,7 @@ class LeiaSentimentAnalyzer(SentimentAnalyzer):
         from LeIA import SentimentIntensityAnalyzer
         self.analyzer = SentimentIntensityAnalyzer()
 
-    def analyze(self, texts: List[str]) -> Dict[str, int]:
+    def analyze(self, texts: list[str]) -> dict[str, int]:
         counts = {"Positivo": 0, "Negativo": 0, "Neutro": 0}
 
         for text in texts:
