@@ -52,8 +52,17 @@ function startMonitoring(chatDocument) {
             mutation.addedNodes.forEach((node) => {
                 if (node.nodeType !== Node.ELEMENT_NODE) return;
 
-                const authorEl = node.querySelector("#author-name, [id*='author'], .yt-live-chat-author-chip");
-                const messageEl = node.querySelector("#message, [id*='message'], .yt-live-chat-text-message-renderer #message");
+                // O container da mensagem tem tag YT-LIVE-CHAT-TEXT-MESSAGE-RENDERER
+                const msgContainer = node.tagName === 'YT-LIVE-CHAT-TEXT-MESSAGE-RENDERER'
+                    ? node
+                    : node.querySelector('yt-live-chat-text-message-renderer');
+
+                if (!msgContainer) return;
+
+                const authorEl = msgContainer.querySelector('#author-name, .author-name, span[id*=\"author\"]');
+                const messageEl = msgContainer.querySelector('#message, span[id*=\"message\"]');
+
+                if (!authorEl || !messageEl) return;
 
                 if (authorEl && messageEl) {
                     const author = authorEl.textContent.trim();
@@ -66,7 +75,7 @@ function startMonitoring(chatDocument) {
                             if (result.token) {
                                 headers['Authorization'] = `Bearer ${result.token}`;
                             }
-                            fetch('http://127.0.0.1:8000/api/chat/messages', {
+                            fetch('http://localhost:8000/api/chat/messages', {
                                 method: 'POST',
                                 headers,
                                 body: JSON.stringify({ author, message, live_id: liveId, platform: "youtube" }),
