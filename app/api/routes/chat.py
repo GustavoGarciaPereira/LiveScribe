@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from app.models.user import User
 from app.schemas.chat import (
     ChatMessage, MessageResponse, WordFrequencyItem, WordFrequencyResponse,
@@ -10,6 +10,7 @@ from app.schemas.chat import (
     TopicsResponse, TopicItem,
 )
 from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
+from app.repositories.messages import list_messages_by_live
 from app.services.chat import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -128,3 +129,38 @@ def topics(
         live_id=result["live_id"],
         topics=[TopicItem(**t) for t in result["topics"]],
     )
+
+
+@router.get("/{live_id}/export")
+def export_data(
+    live_id: str,
+    format: str = "json",
+    include_analysis: bool = False,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    from app.services.export import ExportService
+    exporter = ExportService(service.db, service.sentiment_analyzer, service.topic_extractor)
+
+    messages = list_messages_by_live(service.db, live_id, user_id=user.id)
+    if not messages:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+
+    if format == "json":
+        content = exporter.export_json(live_id, include_analysis=include_analysis, user_id=user.id)
+        return Response(content=content, media_type="application/json",
+                        headers={"Content-Disposition": f"attachment; filename={live_id}.json"})
+    elif format == "csv":
+        content = exporter.export_csv(live_id, user_id=user.id)
+        return Response(content=content, media_type="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename={live_id}.csv"})
+    elif format == "xlsx":
+        try:
+            content = exporter.export_xlsx(live_id, user_id=user.id)
+        except ImportError as e:
+            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(e))
+        return Response(content=content,
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename={live_id}.xlsx"})
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato inválido. Use json, csv ou xlsx.")

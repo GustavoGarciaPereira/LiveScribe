@@ -15,6 +15,9 @@ httpx
 # ML / NLP
 scikit-learn
 
+# Exportação
+openpyxl
+
 # Templates / Dashboard
 jinja2
 aiofiles
