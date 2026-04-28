@@ -34,6 +34,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     user = User(
         email=payload.email,
         name=payload.name,
+        google_id=f"local_{payload.email}",
         password_hash=User.hash_password(payload.password),
         provider="local",
     )
