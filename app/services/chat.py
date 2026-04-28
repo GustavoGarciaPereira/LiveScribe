@@ -18,8 +18,8 @@ class ChatService:
     def list_lives(self) -> list[dict]:
         return list_lives(self.db)
 
-    def save_message(self, live_id: str, author: str, content: str, platform: str = "youtube"):
-        return create_message(self.db, live_id=live_id, author=author, content=content, platform=platform)
+    def save_message(self, live_id: str, author: str, content: str, platform: str = "youtube", user_id: int | None = None):
+        return create_message(self.db, live_id=live_id, author=author, content=content, platform=platform, user_id=user_id)
 
     def word_frequency(self, live_id: str, top_n: int = 10):
         messages = list_messages_by_live(self.db, live_id)

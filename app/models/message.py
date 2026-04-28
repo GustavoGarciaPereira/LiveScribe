@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 
 from app.infrastructure.database import Base
 
@@ -12,6 +12,7 @@ class Message(Base):
     author = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
     platform = Column(String(50), nullable=False, default="youtube")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

@@ -1,4 +1,7 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from app.models.user import User
 from app.schemas.chat import (
     ChatMessage, MessageResponse, WordFrequencyItem, WordFrequencyResponse,
     SentimentResponse, LiveSummary, LiveListResponse,
@@ -6,18 +9,29 @@ from app.schemas.chat import (
     EngagementPeaksResponse, EngagementPeak,
     TopicsResponse, TopicItem,
 )
-from app.api.deps import get_chat_service
+from app.api.deps import get_chat_service, get_current_user_optional
 from app.services.chat import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("/messages", response_model=MessageResponse)
-def save_message(payload: ChatMessage, service: ChatService = Depends(get_chat_service)):
-    message = service.save_message(payload.live_id, payload.author, payload.message, payload.platform or "youtube")
+def save_message(
+    payload: ChatMessage,
+    user: Optional[User] = Depends(get_current_user_optional),
+    service: ChatService = Depends(get_chat_service),
+):
+    message = service.save_message(
+        payload.live_id, payload.author, payload.message,
+        payload.platform or "youtube",
+        user_id=user.id if user else None,
+    )
     return MessageResponse.model_validate(message)
 
 @router.get("/lives", response_model=LiveListResponse)
-def list_lives_endpoint(service: ChatService = Depends(get_chat_service)):
+def list_lives_endpoint(
+    user: Optional[User] = Depends(get_current_user_optional),
+    service: ChatService = Depends(get_chat_service),
+):
     lives = service.list_lives()
     return LiveListResponse(
         lives=[LiveSummary(**live) for live in lives],
@@ -26,7 +40,12 @@ def list_lives_endpoint(service: ChatService = Depends(get_chat_service)):
 
 
 @router.get("/{live_id}/word-frequency", response_model=WordFrequencyResponse)
-def word_frequency(live_id: str, top_n: int = 10, service: ChatService = Depends(get_chat_service)):
+def word_frequency(
+    live_id: str,
+    top_n: int = 10,
+    user: Optional[User] = Depends(get_current_user_optional),
+    service: ChatService = Depends(get_chat_service),
+):
     freq_tuples = service.word_frequency(live_id, top_n)
     if not freq_tuples:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
@@ -37,7 +56,11 @@ def word_frequency(live_id: str, top_n: int = 10, service: ChatService = Depends
     return WordFrequencyResponse(live_id=live_id, word_frequency=items)
 
 @router.get("/{live_id}/sentiment", response_model=SentimentResponse)
-def sentiment_analysis(live_id: str, service: ChatService = Depends(get_chat_service)):
+def sentiment_analysis(
+    live_id: str,
+    user: Optional[User] = Depends(get_current_user_optional),
+    service: ChatService = Depends(get_chat_service),
+):
     try:
         summary = service.sentiment_summary(live_id)
     except Exception as e:
@@ -57,6 +80,7 @@ def sentiment_analysis(live_id: str, service: ChatService = Depends(get_chat_ser
 def sentiment_timeline(
     live_id: str,
     interval_minutes: int = 5,
+    user: Optional[User] = Depends(get_current_user_optional),
     service: ChatService = Depends(get_chat_service),
 ):
     result = service.sentiment_timeline(live_id, interval_minutes)
@@ -74,6 +98,7 @@ def engagement_peaks(
     live_id: str,
     top_n: int = 5,
     window_minutes: int = 1,
+    user: Optional[User] = Depends(get_current_user_optional),
     service: ChatService = Depends(get_chat_service),
 ):
     result = service.engagement_peaks(live_id, top_n, window_minutes)
@@ -90,6 +115,7 @@ def engagement_peaks(
 def topics(
     live_id: str,
     top_n: int = 10,
+    user: Optional[User] = Depends(get_current_user_optional),
     service: ChatService = Depends(get_chat_service),
 ):
     result = service.extract_topics(live_id, top_n)

@@ -17,5 +17,10 @@ scikit-learn
 # Templates / Dashboard
 jinja2
 aiofiles
+
+# Autenticação
+python-jose[cryptography]
+httpx-oauth
+python-multipart
 #pip install torch==2.2.0+cpu --index-url https://download.pytorch.org/whl/cpu
 #torch

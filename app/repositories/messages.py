@@ -2,8 +2,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.models.message import Message
 
-def create_message(db: Session, *, live_id: str, author: str, content: str, platform: str = "youtube") -> Message:
-    db_message = Message(live_id=live_id, author=author, message=content, platform=platform)
+def create_message(db: Session, *, live_id: str, author: str, content: str, platform: str = "youtube", user_id: int | None = None) -> Message:
+    db_message = Message(live_id=live_id, author=author, message=content, platform=platform, user_id=user_id)
     db.add(db_message)
     db.commit()
     db.refresh(db_message)

@@ -6,18 +6,44 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy import inspect, text
 
+from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
 from app.core.config import settings
 from app.infrastructure.database import Base, engine
 
 
-def _migrate_platform_column():
-    """Adiciona a coluna 'platform' se ela não existir (bancos legados)."""
+def _migrate_legacy_db():
+    """Adiciona colunas/tabelas ausentes em bancos legados."""
     inspector = inspect(engine)
+
+    # Tabela users (Fase 3)
+    if not inspector.has_table("users"):
+        with engine.connect() as conn:
+            conn.execute(text(
+                "CREATE TABLE users ("
+                "id INTEGER NOT NULL, "
+                "email VARCHAR(255) NOT NULL, "
+                "name VARCHAR(255) NOT NULL, "
+                "google_id VARCHAR(255) NOT NULL, "
+                "created_at DATETIME NOT NULL, "
+                "PRIMARY KEY (id), "
+                "UNIQUE (email), "
+                "UNIQUE (google_id)"
+                ")"
+            ))
+            conn.commit()
+
+    # Coluna platform (Fase 2)
     columns = [c["name"] for c in inspector.get_columns("messages")]
     if "platform" not in columns:
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE messages ADD COLUMN platform VARCHAR(50) NOT NULL DEFAULT 'youtube'"))
+            conn.commit()
+
+    # Coluna user_id (Fase 3)
+    if "user_id" not in columns:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE messages ADD COLUMN user_id INTEGER REFERENCES users(id)"))
             conn.commit()
 
 
@@ -25,7 +51,7 @@ def create_application() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
-        _migrate_platform_column()
+        _migrate_legacy_db()
         yield
 
     app = FastAPI(
@@ -45,6 +71,7 @@ def create_application() -> FastAPI:
         allow_headers=settings.CORS_ALLOW_HEADERS,
     )
 
+    app.include_router(auth_router)
     app.include_router(chat_router, prefix=settings.API_PREFIX)
 
     @app.get("/dashboard", response_class=HTMLResponse)

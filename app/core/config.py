@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = Field(default_factory=lambda: ["*"])
     CORS_ALLOW_HEADERS: list[str] = Field(default_factory=lambda: ["*"])
 
+    # Autenticação
+    SECRET_KEY: str = "change-me-in-production"
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
