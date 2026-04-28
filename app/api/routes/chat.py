@@ -9,15 +9,16 @@ from app.schemas.chat import (
     EngagementPeaksResponse, EngagementPeak,
     TopicsResponse, TopicItem,
 )
-from app.api.deps import get_chat_service, get_current_user_optional
+from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
 from app.services.chat import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+
 @router.post("/messages", response_model=MessageResponse)
 def save_message(
     payload: ChatMessage,
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: Optional[User] = Depends(get_current_user_optional_v2),
     service: ChatService = Depends(get_chat_service),
 ):
     message = service.save_message(
@@ -27,12 +28,13 @@ def save_message(
     )
     return MessageResponse.model_validate(message)
 
+
 @router.get("/lives", response_model=LiveListResponse)
 def list_lives_endpoint(
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
-    lives = service.list_lives()
+    lives = service.list_lives(user_id=user.id)
     return LiveListResponse(
         lives=[LiveSummary(**live) for live in lives],
         total_lives=len(lives),
@@ -43,10 +45,10 @@ def list_lives_endpoint(
 def word_frequency(
     live_id: str,
     top_n: int = 10,
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
-    freq_tuples = service.word_frequency(live_id, top_n)
+    freq_tuples = service.word_frequency(live_id, top_n, user_id=user.id)
     if not freq_tuples:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     items = [
@@ -55,14 +57,15 @@ def word_frequency(
     ]
     return WordFrequencyResponse(live_id=live_id, word_frequency=items)
 
+
 @router.get("/{live_id}/sentiment", response_model=SentimentResponse)
 def sentiment_analysis(
     live_id: str,
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
     try:
-        summary = service.sentiment_summary(live_id)
+        summary = service.sentiment_summary(live_id, user_id=user.id)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     if summary is None:
@@ -80,10 +83,10 @@ def sentiment_analysis(
 def sentiment_timeline(
     live_id: str,
     interval_minutes: int = 5,
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
-    result = service.sentiment_timeline(live_id, interval_minutes)
+    result = service.sentiment_timeline(live_id, interval_minutes, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     return SentimentTimelineResponse(
@@ -98,10 +101,10 @@ def engagement_peaks(
     live_id: str,
     top_n: int = 5,
     window_minutes: int = 1,
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
-    result = service.engagement_peaks(live_id, top_n, window_minutes)
+    result = service.engagement_peaks(live_id, top_n, window_minutes, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     return EngagementPeaksResponse(
@@ -115,10 +118,10 @@ def engagement_peaks(
 def topics(
     live_id: str,
     top_n: int = 10,
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
-    result = service.extract_topics(live_id, top_n)
+    result = service.extract_topics(live_id, top_n, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     return TopicsResponse(

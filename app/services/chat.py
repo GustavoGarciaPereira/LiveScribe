@@ -15,14 +15,14 @@ class ChatService:
         self.sentiment_analyzer = sentiment_analyzer
         self.topic_extractor = topic_extractor
 
-    def list_lives(self) -> list[dict]:
-        return list_lives(self.db)
+    def list_lives(self, user_id: int | None = None) -> list[dict]:
+        return list_lives(self.db, user_id=user_id)
 
     def save_message(self, live_id: str, author: str, content: str, platform: str = "youtube", user_id: int | None = None):
         return create_message(self.db, live_id=live_id, author=author, content=content, platform=platform, user_id=user_id)
 
-    def word_frequency(self, live_id: str, top_n: int = 10):
-        messages = list_messages_by_live(self.db, live_id)
+    def word_frequency(self, live_id: str, top_n: int = 10, user_id: int | None = None):
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:
             return None
 
@@ -34,8 +34,8 @@ class ChatService:
 
         return Counter(all_words).most_common(top_n)
 
-    def sentiment_summary(self, live_id: str) -> dict | None:
-        messages = list_messages_by_live(self.db, live_id)
+    def sentiment_summary(self, live_id: str, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         texts = [m.message for m in messages]
 
         if not texts:
@@ -49,8 +49,8 @@ class ChatService:
             "total_messages": len(texts),
         }
 
-    def sentiment_timeline(self, live_id: str, interval_minutes: int = 5) -> dict | None:
-        messages = list_messages_by_live(self.db, live_id)
+    def sentiment_timeline(self, live_id: str, interval_minutes: int = 5, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:
             return None
 
@@ -58,24 +58,20 @@ class ChatService:
         last = messages[-1].created_at
         delta = timedelta(minutes=interval_minutes)
 
-        # Gera buckets
         buckets = []
         current = first
         while current <= last:
             buckets.append({"start": current, "end": current + delta, "msgs": []})
             current += delta
 
-        # Distribui mensagens nos buckets
         for msg in messages:
             for bucket in buckets:
                 if bucket["start"] <= msg.created_at < bucket["end"]:
                     bucket["msgs"].append(msg)
                     break
             else:
-                # Garante que a última mensagem cai no último bucket
                 buckets[-1]["msgs"].append(msg)
 
-        # Analisa cada bucket
         timeline = []
         for bucket in buckets:
             texts = [m.message for m in bucket["msgs"]]
@@ -93,8 +89,8 @@ class ChatService:
             "timeline": timeline,
         }
 
-    def engagement_peaks(self, live_id: str, top_n: int = 5, window_minutes: int = 1) -> dict | None:
-        messages = list_messages_by_live(self.db, live_id)
+    def engagement_peaks(self, live_id: str, top_n: int = 5, window_minutes: int = 1, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:
             return None
 
@@ -102,7 +98,6 @@ class ChatService:
         first = messages[0].created_at
         last = messages[-1].created_at
 
-        # Conta mensagens por janela
         window_counts: dict[str, int] = {}
         current = first
         while current <= last:
@@ -113,7 +108,6 @@ class ChatService:
                     window_counts[key] += 1
             current += delta
 
-        # Ordena pelos picos
         sorted_peaks = sorted(window_counts.items(), key=lambda x: x[1], reverse=True)[:top_n]
         from datetime import datetime as dt
         peaks = [
@@ -127,8 +121,8 @@ class ChatService:
             "peaks": peaks,
         }
 
-    def extract_topics(self, live_id: str, top_n: int = 10) -> dict | None:
-        messages = list_messages_by_live(self.db, live_id)
+    def extract_topics(self, live_id: str, top_n: int = 10, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:
             return None
 

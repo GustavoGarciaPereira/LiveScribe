@@ -9,16 +9,40 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
         h1 { margin-bottom: 1rem; }
-        select { padding: 0.5rem 1rem; font-size: 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
+        select, input, button { padding: 0.5rem 1rem; font-size: 1rem; border-radius: 6px; margin-bottom: 0.5rem; }
+        input { background: #334155; border: 1px solid #475569; color: #e2e8f0; }
+        button { background: #3b82f6; border: none; color: #fff; cursor: pointer; font-weight: 600; }
+        button:hover { background: #2563eb; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
-        .card { background: #1e293b; border-radius: 10px; padding: 1.5rem; }
+        .card { background: #1e293b; border-radius: 10px; padding: 1.5rem; margin-bottom: 1rem; }
         .card h2 { margin-bottom: 1rem; font-size: 1.1rem; color: #94a3b8; }
         canvas { max-height: 300px; }
+        .hidden { display: none; }
+        .error { color: #f87171; margin-top: 0.5rem; }
     </style>
 </head>
 <body>
     <h1>📊 PulsoDaLive — Dashboard</h1>
 
+    <!-- Seção de Autenticação -->
+    <div id="auth-section" class="card">
+        <h2>Login</h2>
+        <div id="login-form">
+            <input type="email" id="login-email" placeholder="Email" required>
+            <input type="password" id="login-password" placeholder="Senha" required>
+            <button id="login-btn">Entrar</button>
+            <div id="login-error" class="error"></div>
+        </div>
+        <div id="user-info" class="hidden">
+            <p>✅ Logado como <strong id="display-email"></strong></p>
+            <button id="logout-btn" class="danger">Sair</button>
+        </div>
+    </div>
+
+    <!-- Seção de Dados (inicialmente oculta) -->
+    <div id="data-section" class="hidden">
     <label for="live-select">Selecione uma live:</label>
     <select id="live-select">
         <option value="">-- Carregando lives... --</option>
@@ -49,7 +73,7 @@ const API = '/api/chat';
 let timelineChart, peaksChart, wordsChart, topicsChart;
 
 async function loadLives() {
-    const res = await fetch(`${API}/lives`);
+    const res = await fetch(`${API}/lives`, { headers: getHeaders() });
     const data = await res.json();
     const select = document.getElementById('live-select');
     select.innerHTML = '<option value="">-- Selecione uma live --</option>';
@@ -70,7 +94,7 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
 });
 
 async function loadTimeline(liveId) {
-    const res = await fetch(`${API}/${liveId}/sentiment-timeline?interval_minutes=5`);
+    const res = await fetch(`${API}/${liveId}/sentiment-timeline?interval_minutes=5`, { headers: getHeaders() });
     const data = await res.json();
     const labels = data.timeline.map(b => b.start_time.slice(11,16));
     const pos = data.timeline.map(b => b.sentiments.Positivo);
@@ -92,7 +116,7 @@ async function loadTimeline(liveId) {
 }
 
 async function loadPeaks(liveId) {
-    const res = await fetch(`${API}/${liveId}/engagement-peaks?top_n=10&window_minutes=1`);
+    const res = await fetch(`${API}/${liveId}/engagement-peaks?top_n=10&window_minutes=1`, { headers: getHeaders() });
     const data = await res.json();
     const labels = data.peaks.map(p => p.time.slice(11,16));
     const counts = data.peaks.map(p => p.message_count);
@@ -108,7 +132,7 @@ async function loadPeaks(liveId) {
 }
 
 async function loadWords(liveId) {
-    const res = await fetch(`${API}/${liveId}/word-frequency?top_n=10`);
+    const res = await fetch(`${API}/${liveId}/word-frequency?top_n=10`, { headers: getHeaders() });
     const data = await res.json();
     const labels = data.word_frequency.map(w => w.palavra);
     const counts = data.word_frequency.map(w => w.frequencia);
@@ -124,7 +148,7 @@ async function loadWords(liveId) {
 }
 
 async function loadTopics(liveId) {
-    const res = await fetch(`${API}/${liveId}/topics?top_n=10`);
+    const res = await fetch(`${API}/${liveId}/topics?top_n=10`, { headers: getHeaders() });
     const data = await res.json();
     const labels = data.topics.map(t => t.term);
     const scores = data.topics.map(t => t.score);
@@ -140,6 +164,65 @@ async function loadTopics(liveId) {
 }
 
 loadLives();
+</script>
+    </div><!-- #data-section -->
+
+<script>
+// --- Gestão da Autenticação ---
+const API_BASE = '';
+const authSection = document.getElementById('auth-section');
+const dataSection = document.getElementById('data-section');
+const loginForm = document.getElementById('login-form');
+const userInfo = document.getElementById('user-info');
+const displayEmail = document.getElementById('display-email');
+
+function getHeaders() {
+    const token = localStorage.getItem('token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+function checkAuthState() {
+    const token = localStorage.getItem('token');
+    const email = localStorage.getItem('user_email');
+    if (token && email) {
+        loginForm.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        displayEmail.textContent = email;
+        dataSection.classList.remove('hidden');
+        loadLives();
+    } else {
+        loginForm.classList.remove('hidden');
+        userInfo.classList.add('hidden');
+        dataSection.classList.add('hidden');
+    }
+}
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    const errorDiv = document.getElementById('login-error');
+    errorDiv.textContent = '';
+    try {
+        const resp = await fetch(`${API_BASE}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        if (!resp.ok) { const d = await resp.json(); throw new Error(d.detail || 'Falha no login'); }
+        const data = await resp.json();
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('user_email', data.user.email);
+        checkAuthState();
+    } catch (e) { errorDiv.textContent = e.message; }
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_email');
+    checkAuthState();
+});
+
+checkAuthState();
 </script>
 </body>
 </html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PulsoDaLive — Login</title>
+    <style>
+        body { font-family: system-ui, sans-serif; padding: 16px; width: 280px; background: #1e293b; color: #f1f5f9; }
+        input { width: 100%; padding: 8px; margin: 6px 0; box-sizing: border-box; border-radius: 6px; border: 1px solid #475569; background: #334155; color: #f1f5f9; font-size: 14px; }
+        button { width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; margin-top: 8px; }
+        button:hover { background: #2563eb; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        #status { margin-top: 10px; font-size: 13px; text-align: center; }
+        .error { color: #f87171; }
+        .success { color: #4ade80; }
+        h3 { text-align: center; margin-top: 0; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h3>🔴 PulsoDaLive</h3>
+    <div id="login-form">
+        <input type="email" id="email" placeholder="Email" autocomplete="email">
+        <input type="password" id="password" placeholder="Senha" autocomplete="current-password">
+        <button id="login-btn">Entrar</button>
+    </div>
+    <div id="logged-in" class="hidden">
+        <p style="text-align:center;">✅ Logado como <strong id="display-email"></strong></p>
+        <button id="logout-btn" class="danger">Sair</button>
+    </div>
+    <div id="status"></div>
+    <script src="popup.js"></script>
+</body>
+</html>

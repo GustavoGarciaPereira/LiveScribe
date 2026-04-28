@@ -22,45 +22,66 @@ function startMonitoring(chatDocument) {
     }
     console.log('[DEBUG] liveId extraído:', liveId);
 
-    const chatContainerSelector = "#items.yt-live-chat-item-list-renderer";
-    const chatContainer = chatDocument.querySelector(chatContainerSelector);
+    const selectors = [
+        "#items.yt-live-chat-item-list-renderer",
+        "#items",
+        "yt-live-chat-item-list-renderer #items",
+        "#item-scroller #items",
+        "yt-live-chat-item-list-renderer #item-scroller #items",
+    ];
+
+    let chatContainer = null;
+    for (const sel of selectors) {
+        chatContainer = chatDocument.querySelector(sel);
+        if (chatContainer) {
+            console.log("PulsoDaLive: Contêiner encontrado com seletor:", sel);
+            break;
+        }
+    }
 
     if (!chatContainer) {
-        console.error("PulsoDaLive: Erro crítico! O contêiner do chat não foi encontrado DENTRO do iframe. A estrutura do YouTube pode ter mudado.");
+        console.error("PulsoDaLive: Nenhum contêiner do chat encontrado.");
+        console.log("PulsoDaLive: Seletores tentados:", selectors);
         return;
     }
 
-    console.log("PulsoDaLive: Contêiner do chat encontrado DENTRO do iframe. Observador ativado!");
+    console.log("PulsoDaLive: Monitoramento ativado!");
 
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
                 if (node.nodeType !== Node.ELEMENT_NODE) return;
 
-                const authorElement = node.querySelector("#author-name");
-                const messageElement = node.querySelector("#message");
+                const authorEl = node.querySelector("#author-name, [id*='author'], .yt-live-chat-author-chip");
+                const messageEl = node.querySelector("#message, [id*='message'], .yt-live-chat-text-message-renderer #message");
 
-                if (authorElement && messageElement) {
-                    const author = authorElement.textContent.trim();
-                    const message = messageElement.textContent.trim();
+                if (authorEl && messageEl) {
+                    const author = authorEl.textContent.trim();
+                    const message = messageEl.textContent.trim();
 
                     if (author && message && liveId) {
                         console.log(`%c[DADO VÁLIDO] Live ID: ${liveId}, Autor: ${author}`, 'color: green');
-                        fetch('http://127.0.0.1:8000/api/chat/messages', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ author, message, live_id: liveId, platform: "youtube" }),
-                        })
-                        .then(response => response.json())
-                        .then(data => console.log('%c[RESPOSTA API]', 'color: blue', data))
-                        .catch((error) => console.error('%c[ERRO FETCH]', 'color: red', error));
+                        chrome.storage.local.get(['token'], (result) => {
+                            const headers = { 'Content-Type': 'application/json' };
+                            if (result.token) {
+                                headers['Authorization'] = `Bearer ${result.token}`;
+                            }
+                            fetch('http://127.0.0.1:8000/api/chat/messages', {
+                                method: 'POST',
+                                headers,
+                                body: JSON.stringify({ author, message, live_id: liveId, platform: "youtube" }),
+                            })
+                            .then(response => response.json())
+                            .then(data => console.log('%c[RESPOSTA API]', 'color: blue', data))
+                            .catch((error) => console.error('%c[ERRO FETCH]', 'color: red', error));
+                        });
                     }
                 }
             });
         });
     });
 
-    observer.observe(chatContainer, { childList: true });
+    observer.observe(chatContainer, { childList: true, subtree: true });
 }
 
 // Função de inicialização que encontra o iframe

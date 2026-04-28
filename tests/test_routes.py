@@ -34,37 +34,37 @@ class TestPostMessage:
 
 
 class TestWordFrequency:
-    def test_valid(self, client):
+    def test_valid(self, client, auth_client):
         # Insere duas mensagens
-        client.post(
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "gato gato cachorro"},
         )
-        client.post(
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "B", "message": "gato passarinho"},
         )
 
-        response = client.get("/api/chat/live1/word-frequency?top_n=10")
+        response = auth_client.get("/api/chat/live1/word-frequency?top_n=10")
         assert response.status_code == 200
         data = response.json()
         assert data["live_id"] == "live1"
         assert data["word_frequency"][0]["palavra"] == "gato"
         assert data["word_frequency"][0]["frequencia"] == 3
 
-    def test_404_when_no_messages(self, client):
-        response = client.get("/api/chat/naoexiste/word-frequency")
+    def test_404_when_no_messages(self, client, auth_client):
+        response = auth_client.get("/api/chat/naoexiste/word-frequency")
         assert response.status_code == 404
 
 
 class TestSentiment:
-    def test_valid(self, client):
-        client.post(
+    def test_valid(self, client, auth_client):
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "Que live incrível!"},
         )
 
-        response = client.get("/api/chat/live1/sentiment")
+        response = auth_client.get("/api/chat/live1/sentiment")
         assert response.status_code == 200
         data = response.json()
         assert data["live_id"] == "live1"
@@ -73,18 +73,18 @@ class TestSentiment:
         # O mock sempre retorna Neutro
         assert data["sentiment_summary"]["Neutro"] == 1
 
-    def test_404_when_no_messages(self, client):
-        response = client.get("/api/chat/vazia/sentiment")
+    def test_404_when_no_messages(self, client, auth_client):
+        response = auth_client.get("/api/chat/vazia/sentiment")
         assert response.status_code == 404
 
-    def test_internal_server_error(self, client, mock_analyzer):
+    def test_internal_server_error(self, client, auth_client, mock_analyzer):
         """Simula erro 500 forçando falha no analisador de sentimento."""
         mock_analyzer.analyze.side_effect = RuntimeError("Falha simulada")
-        client.post(
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "Teste"},
         )
-        response = client.get("/api/chat/live1/sentiment")
+        response = auth_client.get("/api/chat/live1/sentiment")
         assert response.status_code == 500
         assert "detail" in response.json()
 
@@ -110,21 +110,21 @@ class TestPlatform:
 
 
 class TestListLives:
-    def test_with_data(self, client):
-        client.post(
+    def test_with_data(self, client, auth_client):
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "M1"},
         )
-        client.post(
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "B", "message": "M2"},
         )
-        client.post(
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live2", "author": "C", "message": "M3"},
         )
 
-        response = client.get("/api/chat/lives")
+        response = auth_client.get("/api/chat/lives")
         assert response.status_code == 200
         data = response.json()
         assert data["total_lives"] == 2
@@ -132,8 +132,8 @@ class TestListLives:
         assert lives[0]["live_id"] == "live2"  # mais recente primeiro
         assert lives[0]["total_messages"] == 1
 
-    def test_empty(self, client):
-        response = client.get("/api/chat/lives")
+    def test_empty(self, client, auth_client):
+        response = auth_client.get("/api/chat/lives")
         assert response.status_code == 200
         data = response.json()
         assert data["total_lives"] == 0
@@ -141,12 +141,12 @@ class TestListLives:
 
 
 class TestSentimentTimeline:
-    def test_with_data(self, client):
-        client.post(
+    def test_with_data(self, client, auth_client):
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "Que incrível!"},
         )
-        response = client.get("/api/chat/live1/sentiment-timeline?interval_minutes=5")
+        response = auth_client.get("/api/chat/live1/sentiment-timeline?interval_minutes=5")
         assert response.status_code == 200
         data = response.json()
         assert data["live_id"] == "live1"
@@ -154,50 +154,50 @@ class TestSentimentTimeline:
         assert len(data["timeline"]) >= 1
         assert "sentiments" in data["timeline"][0]
 
-    def test_empty(self, client):
-        response = client.get("/api/chat/vazia/sentiment-timeline")
+    def test_empty(self, client, auth_client):
+        response = auth_client.get("/api/chat/vazia/sentiment-timeline")
         assert response.status_code == 404
 
-    def test_custom_interval(self, client):
-        client.post(
+    def test_custom_interval(self, client, auth_client):
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "Teste"},
         )
-        response = client.get("/api/chat/live1/sentiment-timeline?interval_minutes=10")
+        response = auth_client.get("/api/chat/live1/sentiment-timeline?interval_minutes=10")
         assert response.status_code == 200
         data = response.json()
         assert data["interval_minutes"] == 10
 
 
 class TestEngagementPeaks:
-    def test_with_data(self, client):
-        client.post(
+    def test_with_data(self, client, auth_client):
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "Teste"},
         )
-        response = client.get("/api/chat/live1/engagement-peaks?top_n=3")
+        response = auth_client.get("/api/chat/live1/engagement-peaks?top_n=3")
         assert response.status_code == 200
         data = response.json()
         assert data["live_id"] == "live1"
         assert isinstance(data["peaks"], list)
 
-    def test_empty(self, client):
-        response = client.get("/api/chat/vazia/engagement-peaks")
+    def test_empty(self, client, auth_client):
+        response = auth_client.get("/api/chat/vazia/engagement-peaks")
         assert response.status_code == 404
 
 
 class TestTopics:
-    def test_with_data(self, client):
-        client.post(
+    def test_with_data(self, client, auth_client):
+        auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "live incrível"},
         )
-        response = client.get("/api/chat/live1/topics?top_n=5")
+        response = auth_client.get("/api/chat/live1/topics?top_n=5")
         assert response.status_code == 200
         data = response.json()
         assert data["live_id"] == "live1"
         assert isinstance(data["topics"], list)
 
-    def test_empty(self, client):
-        response = client.get("/api/chat/vazia/topics")
+    def test_empty(self, client, auth_client):
+        response = auth_client.get("/api/chat/vazia/topics")
         assert response.status_code == 404
