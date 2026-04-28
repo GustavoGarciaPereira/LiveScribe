@@ -4,43 +4,26 @@ Captura e análise de discurso em tempo real de chats de lives do YouTube.
 
 ## Funcionalidades
 
-- Extensão Chrome que coleta mensagens de chat de lives do YouTube
-- API FastAPI para armazenar e analisar as mensagens
-- Frequência de palavras (com stopwords em português)
-- Análise de sentimentos com léxico LeIA (VADER adaptado para português)
-- Linha do tempo de sentimentos por intervalos de tempo
-- Picos de engajamento (janelas de maior atividade)
-- Tópicos emergentes via TF-IDF
-- Dashboard HTML interativo com Chart.js
-- Arquitetura desacoplada para fácil troca de modelos (sentimento e tópicos)
+- Extensão Chrome com autenticação JWT integrada
+- API FastAPI para armazenar e analisar mensagens
+- Autenticação local (email/senha) e Google OAuth2
+- Frequência de palavras com stopwords em português
+- Análise de sentimentos com LeIA (VADER adaptado)
+- Linha do tempo de sentimentos por intervalos
+- Picos de engajamento por janela de tempo
+- Tópicos emergentes via TF-IDF (scikit-learn)
+- Exportação de dados (JSON, CSV, XLSX)
+- Dashboard HTML interativo com Chart.js e login/logout
+- Isolamento de dados por usuário (JWT)
 - Suporte a múltiplas plataformas (campo `platform`)
 
 ## Stack
 
 - **Backend:** FastAPI, SQLAlchemy, SQLite
-- **ML/NLP:** LeIA (léxico de sentimentos), scikit-learn (TF-IDF para tópicos)
-- **Frontend:** Extensão Chrome Manifest v3 + Dashboard HTML (Chart.js CDN)
-- **Testes:** pytest + pytest-cov (93% cobertura)
-
-## Estrutura
-
-```
-LiveScribe/
-├── app/                    # Backend FastAPI
-│   ├── api/                # Rotas e injeção de dependências
-│   ├── core/               # Configurações e stopwords
-│   ├── infrastructure/     # Banco de dados (SQLite)
-│   ├── models/             # Modelos SQLAlchemy
-│   ├── repositories/       # Acesso a dados (CRUD, consultas agregadas)
-│   ├── schemas/            # Schemas Pydantic v2
-│   ├── services/           # Lógica de negócio e analisadores
-│   └── templates/          # Dashboard HTML
-├── frontend/               # Extensão Chrome "PulsoDaLive"
-├── backend/                # Protótipo antigo (não utilizado)
-├── tests/                  # 51 testes (pytest)
-├── data/                   # Banco SQLite (app.db)
-└── requirements.txt
-```
+- **Autenticação:** JWT (python-jose) + bcrypt + Google OAuth2 (httpx-oauth)
+- **ML/NLP:** LeIA (sentimento), scikit-learn (TF-IDF)
+- **Frontend:** Extensão Chrome Manifest v3 + Dashboard HTML (Chart.js)
+- **Testes:** pytest + pytest-cov (65 testes, 88% cobertura)
 
 ## Como rodar
 
@@ -51,79 +34,83 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Acesse a documentação interativa em http://127.0.0.1:8000/docs
-Dashboard em http://127.0.0.1:8000/dashboard
+Acesse: http://127.0.0.1:8000/docs | Dashboard: http://127.0.0.1:8000/dashboard
 
 ## Extensão Chrome
 
-1. Acesse `chrome://extensions/`
-2. Ative o "Modo do desenvolvedor"
-3. Clique em "Carregar sem compactação" e selecione a pasta `frontend/`
+1. Vá em `chrome://extensions/`, ative "Modo do desenvolvedor"
+2. "Carregar sem compactação" → selecione a pasta `frontend/`
+3. Clique no ícone da extensão → faça login
 4. Abra uma live do YouTube com chat ativo
-5. As mensagens começarão a ser enviadas automaticamente para o backend
+5. As mensagens serão enviadas automaticamente com token JWT
 
 ## Endpoints
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `GET` | `/` | Healthcheck |
-| `GET` | `/dashboard` | Dashboard HTML interativo |
-| `POST` | `/api/chat/messages` | Salvar uma mensagem |
-| `GET` | `/api/chat/lives` | Listar lives capturadas |
-| `GET` | `/api/chat/{live_id}/word-frequency` | Top palavras (frequência) |
-| `GET` | `/api/chat/{live_id}/sentiment` | Análise de sentimentos |
-| `GET` | `/api/chat/{live_id}/sentiment-timeline` | Sentimentos por bucket de tempo |
-| `GET` | `/api/chat/{live_id}/engagement-peaks` | Picos de mensagens |
-| `GET` | `/api/chat/{live_id}/topics` | Tópicos via TF-IDF |
-
-## Arquitetura de serviços (injeção de dependência)
-
-### Sentimento
-
-```
-SentimentAnalyzer (ABC) ← LeiaSentimentAnalyzer (LeIA)
-                              ↓ injetado em
-                         ChatService
-```
-
-### Tópicos
-
-```
-TopicExtractor (ABC) ← TfidfTopicExtractor (scikit-learn)
-                              ↓ injetado em
-                         ChatService
-```
-
-Para trocar de analisador: criar nova classe que implementa a ABC e alterar a injeção em `app/api/deps.py`.
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| `GET` | `/` | ❌ | Healthcheck |
+| `GET` | `/dashboard` | ❌ | Dashboard HTML |
+| `POST` | `/api/auth/register` | ❌ | Cadastro local |
+| `POST` | `/api/auth/login` | ❌ | Login local |
+| `GET` | `/api/auth/login/google` | ❌ | URL Google OAuth |
+| `GET` | `/api/auth/callback/google` | ❌ | Callback Google |
+| `GET` | `/api/auth/me` | ✅ | Dados do usuário |
+| `POST` | `/api/chat/messages` | Opcional | Salvar mensagem |
+| `GET` | `/api/chat/lives` | ✅ | Listar lives |
+| `GET` | `/api/chat/{id}/word-frequency` | ✅ | Top palavras |
+| `GET` | `/api/chat/{id}/sentiment` | ✅ | Sentimentos |
+| `GET` | `/api/chat/{id}/sentiment-timeline` | ✅ | Timeline |
+| `GET` | `/api/chat/{id}/engagement-peaks` | ✅ | Picos |
+| `GET` | `/api/chat/{id}/topics` | ✅ | Tópicos |
+| `GET` | `/api/chat/{id}/export` | ✅ | Exportar JSON/CSV/XLSX |
 
 ## Testes
 
 ```bash
-# Instalar dependências de teste
-pip install pytest pytest-cov httpx
-
-# Executar todos os testes com cobertura
 pytest -v --cov=app --cov-report=term-missing
-
-# Executar apenas um arquivo
-pytest tests/test_routes.py -v
 ```
 
-**Cobertura atual: 93% (51 testes passando).**
+**65 testes, 88% cobertura.**
 
 ## Arquivos de teste
 
-| Arquivo | Cobertura |
-|---------|-----------|
-| `tests/test_routes.py` | Rotas da API (healthcheck, CRUD, lives, timeline, picos, tópicos, plataforma) |
-| `tests/test_services.py` | ChatService + LeiaSentimentAnalyzer real |
-| `tests/test_schemas.py` | Schemas Pydantic (validação, serialização) |
-| `tests/test_repositories.py` | Repositório de mensagens |
+| Arquivo | O que testa |
+|---------|------------|
+| `tests/test_auth.py` | JWT, login local, registro, /me |
+| `tests/test_routes.py` | Todos os endpoints (protegidos com `auth_client`) |
+| `tests/test_services.py` | ChatService, LeiaAnalyzer real, platform |
+| `tests/test_export.py` | Exportação JSON, CSV, XLSX |
+| `tests/test_schemas.py` | Schemas Pydantic |
+| `tests/test_repositories.py` | CRUD mensagens, list_lives |
 | `tests/test_models.py` | Modelo Message (created_at) |
 | `tests/test_deps.py` | Injeção de dependências |
-| `tests/test_dashboard.py` | Rota do dashboard HTML |
-| `tests/conftest.py` | Fixtures compartilhadas (DB em memória, mocks) |
+| `tests/test_dashboard.py` | Dashboard HTML |
+| `tests/conftest.py` | Fixtures (DB memória, mocks, auth_client) |
+
+## Autenticação
+
+- **Google OAuth2**: `GET /api/auth/login/google` → `GET /api/auth/callback/google`
+- **Login local**: `POST /api/auth/register` → `POST /api/auth/login`
+- **JWT**: `python-jose` HS256, expira em 24h
+- **Hash**: `bcrypt` para senhas locais
+- **Provider**: campo `provider` no User (`local` / `google`)
+- **Extensão Chrome**: popup de login, token em `chrome.storage.local`, enviado no header `Authorization`
+
+## Arquitetura de serviços
+
+```
+SentimentAnalyzer (ABC)  ← LeiaSentimentAnalyzer (LeIA)
+TopicExtractor (ABC)     ← TfidfTopicExtractor (sklearn)
+ExportService            → export_json / export_csv / export_xlsx
+                              ↓ injetados em
+                         ChatService / rotas
+```
 
 ## Migração de banco
 
-A coluna `platform` é adicionada automaticamente em bancos legados na inicialização (ALTER TABLE via `lifespan`).
+Colunas/tabelas adicionadas automaticamente no `lifespan` (ALTER TABLE):
+- `platform` (Fase 2)
+- `user_id` (Fase 3)
+- `password_hash`, `provider`, `is_active` (Feature 1.5)
+
+Para recriar do zero: `rm data/app.db` e reiniciar o servidor.
