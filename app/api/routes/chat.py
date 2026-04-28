@@ -27,6 +27,14 @@ def save_message(
         payload.platform or "youtube",
         user_id=user.id if user else None,
     )
+    # Dispara webhooks de nova mensagem
+    from app.services.webhook import trigger_webhooks
+    trigger_webhooks(service.db, "new_message", {
+        "live_id": message.live_id,
+        "author": message.author,
+        "message": message.message,
+        "platform": message.platform,
+    })
     return MessageResponse.model_validate(message)
 
 
@@ -108,6 +116,9 @@ def engagement_peaks(
     result = service.engagement_peaks(live_id, top_n, window_minutes, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    # Dispara webhooks de pico de engajamento
+    from app.services.webhook import trigger_webhooks
+    trigger_webhooks(service.db, "peak_engagement", result)
     return EngagementPeaksResponse(
         live_id=result["live_id"],
         window_minutes=result["window_minutes"],

@@ -8,6 +8,7 @@ from sqlalchemy import inspect, text
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.webhooks import router as webhooks_router
 from app.core.config import settings
 from app.infrastructure.database import Base, engine
 
@@ -91,6 +92,7 @@ def create_application() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(chat_router, prefix=settings.API_PREFIX)
+    app.include_router(webhooks_router, prefix=settings.API_PREFIX)
 
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard():
