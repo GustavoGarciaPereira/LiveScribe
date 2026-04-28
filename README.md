@@ -13,6 +13,7 @@ Captura e análise de discurso em tempo real de chats de lives do YouTube.
 - Picos de engajamento por janela de tempo
 - Tópicos emergentes via TF-IDF (scikit-learn)
 - Exportação de dados (JSON, CSV, XLSX)
+- Sistema de webhooks (new_message, peak_engagement)
 - Dashboard HTML interativo com Chart.js e login/logout
 - Isolamento de dados por usuário (JWT)
 - Suporte a múltiplas plataformas (campo `platform`)
@@ -23,7 +24,7 @@ Captura e análise de discurso em tempo real de chats de lives do YouTube.
 - **Autenticação:** JWT (python-jose) + bcrypt + Google OAuth2 (httpx-oauth)
 - **ML/NLP:** LeIA (sentimento), scikit-learn (TF-IDF)
 - **Frontend:** Extensão Chrome Manifest v3 + Dashboard HTML (Chart.js)
-- **Testes:** pytest + pytest-cov (65 testes, 88% cobertura)
+- **Testes:** pytest + pytest-cov (70 testes, 89% cobertura)
 
 ## Como rodar
 
@@ -63,6 +64,9 @@ Acesse: http://127.0.0.1:8000/docs | Dashboard: http://127.0.0.1:8000/dashboard
 | `GET` | `/api/chat/{id}/engagement-peaks` | ✅ | Picos |
 | `GET` | `/api/chat/{id}/topics` | ✅ | Tópicos |
 | `GET` | `/api/chat/{id}/export` | ✅ | Exportar JSON/CSV/XLSX |
+| `POST` | `/api/webhooks` | ✅ | Criar webhook |
+| `GET` | `/api/webhooks` | ✅ | Listar webhooks |
+| `DELETE` | `/api/webhooks/{id}` | ✅ | Deletar webhook |
 
 ## Testes
 
@@ -70,7 +74,7 @@ Acesse: http://127.0.0.1:8000/docs | Dashboard: http://127.0.0.1:8000/dashboard
 pytest -v --cov=app --cov-report=term-missing
 ```
 
-**65 testes, 88% cobertura.**
+**70 testes, 89% cobertura.**
 
 ## Arquivos de teste
 
@@ -85,6 +89,7 @@ pytest -v --cov=app --cov-report=term-missing
 | `tests/test_models.py` | Modelo Message (created_at) |
 | `tests/test_deps.py` | Injeção de dependências |
 | `tests/test_dashboard.py` | Dashboard HTML |
+| `tests/test_webhooks.py` | Webhooks CRUD + trigger |
 | `tests/conftest.py` | Fixtures (DB memória, mocks, auth_client) |
 
 ## Autenticação
@@ -102,6 +107,7 @@ pytest -v --cov=app --cov-report=term-missing
 SentimentAnalyzer (ABC)  ← LeiaSentimentAnalyzer (LeIA)
 TopicExtractor (ABC)     ← TfidfTopicExtractor (sklearn)
 ExportService            → export_json / export_csv / export_xlsx
+WebhookService           → trigger_webhooks (new_message, peak_engagement)
                               ↓ injetados em
                          ChatService / rotas
 ```
@@ -114,3 +120,15 @@ Colunas/tabelas adicionadas automaticamente no `lifespan` (ALTER TABLE):
 - `password_hash`, `provider`, `is_active` (Feature 1.5)
 
 Para recriar do zero: `rm data/app.db` e reiniciar o servidor.
+
+## Histórico de features
+
+| Feature | O que |
+|---------|-------|
+| Pydantic v2 + testes | Migração para lifespan, type hints modernos, 28 testes |
+| Fase 2 | 4 endpoints analíticos + dashboard + platform |
+| Fase 3 | Auth JWT + Google OAuth2 + multi-usuário |
+| Feature 1.5 | Login local email/senha + bcrypt |
+| Feature 2 | Proteção de rotas + extensão Chrome com auth |
+| Feature 3 | Exportação JSON/CSV/XLSX |
+| Feature 4 | Sistema de webhooks |
