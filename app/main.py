@@ -16,7 +16,7 @@ def _migrate_legacy_db():
     """Adiciona colunas/tabelas ausentes em bancos legados."""
     inspector = inspect(engine)
 
-    # Tabela users (Fase 3)
+    # Tabela users (Fase 3 + Fase 3.5)
     if not inspector.has_table("users"):
         with engine.connect() as conn:
             conn.execute(text(
@@ -24,7 +24,10 @@ def _migrate_legacy_db():
                 "id INTEGER NOT NULL, "
                 "email VARCHAR(255) NOT NULL, "
                 "name VARCHAR(255) NOT NULL, "
-                "google_id VARCHAR(255) NOT NULL, "
+                "google_id VARCHAR(255), "
+                "password_hash VARCHAR(255), "
+                "provider VARCHAR(50) NOT NULL DEFAULT 'local', "
+                "is_active BOOLEAN DEFAULT 1, "
                 "created_at DATETIME NOT NULL, "
                 "PRIMARY KEY (id), "
                 "UNIQUE (email), "
@@ -32,6 +35,21 @@ def _migrate_legacy_db():
                 ")"
             ))
             conn.commit()
+    else:
+        # Adiciona colunas novas da Feature 1.5 em bancos existentes
+        user_columns = [c["name"] for c in inspector.get_columns("users")]
+        if "password_hash" not in user_columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)"))
+                conn.commit()
+        if "provider" not in user_columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT 'local'"))
+                conn.commit()
+        if "is_active" not in user_columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+                conn.commit()
 
     # Coluna platform (Fase 2)
     columns = [c["name"] for c in inspector.get_columns("messages")]

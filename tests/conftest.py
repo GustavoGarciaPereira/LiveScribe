@@ -79,3 +79,22 @@ def client(db_session, mock_analyzer, mock_topic_extractor):
         yield c
 
     app.dependency_overrides.clear()
+
+
+# ── Cliente autenticado ──────────────────────────────────────
+
+@pytest.fixture
+def auth_client(client):
+    """Cliente autenticado com token JWT."""
+    client.post("/api/auth/register", json={
+        "email": "auth@test.com",
+        "name": "Auth User",
+        "password": "testpass123",
+    })
+    login_resp = client.post("/api/auth/login", json={
+        "email": "auth@test.com",
+        "password": "testpass123",
+    })
+    token = login_resp.json()["access_token"]
+    client.headers = {"Authorization": f"Bearer {token}"}
+    return client
