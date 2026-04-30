@@ -84,3 +84,17 @@ class TopicItem(BaseModel):
 class TopicsResponse(BaseModel):
     live_id: str
     topics: list[TopicItem]
+
+
+class TopicBucket(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    count: int
+    total_messages: int
+
+
+class TopicTimelineResponse(BaseModel):
+    live_id: str
+    term: str
+    interval_minutes: int
+    timeline: list[TopicBucket]

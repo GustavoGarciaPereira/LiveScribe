@@ -121,6 +121,48 @@ class ChatService:
             "peaks": peaks,
         }
 
+    def topic_timeline(self, live_id: str, term: str, interval_minutes: int = 5, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        if not messages:
+            return None
+
+        first = messages[0].created_at
+        last = messages[-1].created_at
+        delta = timedelta(minutes=interval_minutes)
+
+        buckets = []
+        current = first
+        while current <= last:
+            buckets.append({"start": current, "end": current + delta, "msgs": []})
+            current += delta
+
+        for msg in messages:
+            for bucket in buckets:
+                if bucket["start"] <= msg.created_at < bucket["end"]:
+                    bucket["msgs"].append(msg)
+                    break
+            else:
+                buckets[-1]["msgs"].append(msg)
+
+        term_lower = term.lower()
+        timeline = []
+        for bucket in buckets:
+            total = len(bucket["msgs"])
+            count = sum(1 for m in bucket["msgs"] if term_lower in m.message.lower())
+            timeline.append({
+                "start_time": bucket["start"],
+                "end_time": bucket["end"],
+                "count": count,
+                "total_messages": total,
+            })
+
+        return {
+            "live_id": live_id,
+            "term": term,
+            "interval_minutes": interval_minutes,
+            "timeline": timeline,
+        }
+
     def extract_topics(self, live_id: str, top_n: int = 10, user_id: int | None = None) -> dict | None:
         messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:

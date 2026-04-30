@@ -8,6 +8,7 @@ from app.schemas.chat import (
     SentimentTimelineResponse, TimelineBucket,
     EngagementPeaksResponse, EngagementPeak,
     TopicsResponse, TopicItem,
+    TopicTimelineResponse, TopicBucket,
 )
 from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
 from app.repositories.messages import list_messages_by_live
@@ -139,6 +140,25 @@ def topics(
     return TopicsResponse(
         live_id=result["live_id"],
         topics=[TopicItem(**t) for t in result["topics"]],
+    )
+
+
+@router.get("/{live_id}/topic-timeline", response_model=TopicTimelineResponse)
+def topic_timeline(
+    live_id: str,
+    term: str,
+    interval_minutes: int = 5,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    result = service.topic_timeline(live_id, term, interval_minutes, user_id=user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return TopicTimelineResponse(
+        live_id=result["live_id"],
+        term=result["term"],
+        interval_minutes=result["interval_minutes"],
+        timeline=[TopicBucket(**bucket) for bucket in result["timeline"]],
     )
 
 

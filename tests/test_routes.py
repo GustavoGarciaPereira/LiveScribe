@@ -186,6 +186,49 @@ class TestEngagementPeaks:
         assert response.status_code == 404
 
 
+class TestTopicTimeline:
+    def test_term_present(self, client, auth_client):
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "gato bonito"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "B", "message": "cachorro legal"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "C", "message": "gato bravo"},
+        )
+
+        response = auth_client.get("/api/chat/live1/topic-timeline?term=gato&interval_minutes=5")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["live_id"] == "live1"
+        assert data["term"] == "gato"
+        assert data["interval_minutes"] == 5
+        assert len(data["timeline"]) >= 1
+        bucket = data["timeline"][0]
+        assert bucket["count"] == 2  # "gato bonito" e "gato bravo"
+        assert bucket["total_messages"] == 3
+
+    def test_term_absent(self, client, auth_client):
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "cachorro legal"},
+        )
+        response = auth_client.get("/api/chat/live1/topic-timeline?term=gato&interval_minutes=5")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["live_id"] == "live1"
+        assert data["term"] == "gato"
+        assert all(bucket["count"] == 0 for bucket in data["timeline"])
+
+    def test_nonexistent_live(self, client, auth_client):
+        response = auth_client.get("/api/chat/naoexiste/topic-timeline?term=gato")
+        assert response.status_code == 404
+
+
 class TestTopics:
     def test_with_data(self, client, auth_client):
         auth_client.post(
