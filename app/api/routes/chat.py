@@ -9,6 +9,7 @@ from app.schemas.chat import (
     EngagementPeaksResponse, EngagementPeak,
     TopicsResponse, TopicItem,
     TopicTimelineResponse, TopicBucket,
+    EmojiResponse, EmojiItem,
 )
 from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
 from app.repositories.messages import list_messages_by_live
@@ -159,6 +160,23 @@ def topic_timeline(
         term=result["term"],
         interval_minutes=result["interval_minutes"],
         timeline=[TopicBucket(**bucket) for bucket in result["timeline"]],
+    )
+
+
+@router.get("/{live_id}/emojis", response_model=EmojiResponse)
+def emoji_analysis(
+    live_id: str,
+    top_n: int = 20,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    result = service.emoji_analysis(live_id, top_n, user_id=user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return EmojiResponse(
+        live_id=result["live_id"],
+        total_emojis=result["total_emojis"],
+        emojis=[EmojiItem(**e) for e in result["emojis"]],
     )
 
 

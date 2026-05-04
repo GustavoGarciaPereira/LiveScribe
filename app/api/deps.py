@@ -6,6 +6,7 @@ from app.infrastructure.database import SessionLocal
 from app.services.chat import ChatService
 from app.services.sentiment import LeiaSentimentAnalyzer
 from app.services.topics import TfidfTopicExtractor
+from app.services.emojis import RegexEmojiExtractor
 
 security = HTTPBearer()
 

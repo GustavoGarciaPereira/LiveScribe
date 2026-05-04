@@ -6,14 +6,16 @@ from app.core.stopwords import PORTUGUESE_STOPWORDS
 from app.repositories.messages import create_message, list_messages_by_live, list_lives
 from app.services.sentiment import SentimentAnalyzer
 from app.services.topics import TopicExtractor
+from app.services.emojis import EmojiExtractor
 from sqlalchemy.orm import Session
 
 
 class ChatService:
-    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None):
+    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None):
         self.db = db
         self.sentiment_analyzer = sentiment_analyzer
         self.topic_extractor = topic_extractor
+        self.emoji_extractor = emoji_extractor
 
     def list_lives(self, user_id: int | None = None) -> list[dict]:
         return list_lives(self.db, user_id=user_id)
@@ -174,3 +176,19 @@ class ChatService:
         texts = [m.message for m in messages]
         topics = self.topic_extractor.extract(texts, top_n)
         return {"live_id": live_id, "topics": topics}
+    def emoji_analysis(self, live_id: str, top_n: int = 20, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        if not messages:
+            return None
+
+        if self.emoji_extractor is None:
+            return {"live_id": live_id, "total_emojis": 0, "emojis": []}
+
+        texts = [m.message for m in messages]
+        emojis = self.emoji_extractor.extract_with_sentiment(texts, top_n)
+        return {
+            "live_id": live_id,
+            "total_emojis": sum(e["count"] for e in emojis),
+            "emojis": emojis,
+        }
+

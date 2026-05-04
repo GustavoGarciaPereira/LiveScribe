@@ -98,3 +98,13 @@ class TopicTimelineResponse(BaseModel):
     term: str
     interval_minutes: int
     timeline: list[TopicBucket]
+class EmojiItem(BaseModel):
+    emoji: str
+    count: int
+    sentiment: str
+
+
+class EmojiResponse(BaseModel):
+    live_id: str
+    total_emojis: int
+    emojis: list[EmojiItem]
