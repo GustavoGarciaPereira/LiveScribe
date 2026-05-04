@@ -19,10 +19,10 @@ class EmojiExtractor(ABC):
 
 
 class RegexEmojiExtractor(EmojiExtractor):
-    """Extrai emojis usando regex unicode e mapeia sentimento por dicionario."""
+    """Extrai emojis usando regex Extended_Pictographic e mapeia sentimento por dicionario."""
 
     def __init__(self):
-        self.pattern = regex.compile(r'\p{Emoji}')
+        self.pattern = regex.compile(r'\p{Extended_Pictographic}')
 
     def extract_with_sentiment(self, texts: list[str], top_n: int = 20) -> list[dict]:
         all_emojis: list[str] = []
