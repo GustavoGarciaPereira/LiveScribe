@@ -44,7 +44,8 @@
     <!-- Seção de Dados (inicialmente oculta) -->
     <div id="data-section" class="hidden">
     <label for="live-select">Selecione uma live:</label>
-    <select id="live-select">
+    <input type="text" id="live-search" placeholder="Buscar live..." style="width:100%; max-width:300px; margin-bottom:0.25rem; background:#334155; border:1px solid #475569; color:#e2e8f0; padding:0.4rem 0.6rem; border-radius:6px; font-size:0.9rem;">
+    <select id="live-select" style="width:100%; max-width:300px;">
         <option value="">-- Carregando lives... --</option>
     </select>
 
@@ -93,15 +94,30 @@ const API = '/api/chat';
 
 let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart;
 
+let livesData = [];
+
 async function loadLives() {
     const res = await fetch(`${API}/lives`, { headers: getHeaders() });
     const data = await res.json();
+    livesData = data.lives;
+    renderLiveOptions('');
+}
+
+function renderLiveOptions(filter) {
     const select = document.getElementById('live-select');
+    const current = select.value;
     select.innerHTML = '<option value="">-- Selecione uma live --</option>';
-    data.lives.forEach(l => {
+    const f = filter.toLowerCase();
+    livesData.forEach(l => {
+        if (f && !l.live_id.toLowerCase().includes(f)) return;
         select.innerHTML += `<option value="${l.live_id}">${l.live_id} (${l.total_messages} msgs)</option>`;
     });
+    select.value = current;
 }
+
+document.getElementById('live-search').addEventListener('input', (e) => {
+    renderLiveOptions(e.target.value);
+});
 
 document.getElementById('live-select').addEventListener('change', async (e) => {
     const liveId = e.target.value;
