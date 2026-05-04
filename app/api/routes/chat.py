@@ -10,6 +10,7 @@ from app.schemas.chat import (
     TopicsResponse, TopicItem,
     TopicTimelineResponse, TopicBucket,
     EmojiResponse, EmojiItem,
+    TopAuthorsResponse, AuthorItem,
 )
 from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
 from app.repositories.messages import list_messages_by_live
@@ -160,6 +161,24 @@ def topic_timeline(
         term=result["term"],
         interval_minutes=result["interval_minutes"],
         timeline=[TopicBucket(**bucket) for bucket in result["timeline"]],
+    )
+
+
+@router.get("/{live_id}/top-authors", response_model=TopAuthorsResponse)
+def top_authors(
+    live_id: str,
+    top_n: int = 10,
+    sort_by: str = "messages",
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    result = service.top_authors(live_id, top_n, sort_by, user_id=user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return TopAuthorsResponse(
+        live_id=result["live_id"],
+        total_authors=result["total_authors"],
+        authors=[AuthorItem(**a) for a in result["authors"]],
     )
 
 

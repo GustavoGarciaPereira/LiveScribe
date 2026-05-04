@@ -3,7 +3,7 @@ from datetime import timedelta
 import re
 
 from app.core.stopwords import PORTUGUESE_STOPWORDS
-from app.repositories.messages import create_message, list_messages_by_live, list_lives
+from app.repositories.messages import create_message, list_messages_by_live, list_lives, list_top_authors
 from app.services.sentiment import SentimentAnalyzer
 from app.services.topics import TopicExtractor
 from app.services.emojis import EmojiExtractor
@@ -176,6 +176,41 @@ class ChatService:
         texts = [m.message for m in messages]
         topics = self.topic_extractor.extract(texts, top_n)
         return {"live_id": live_id, "topics": topics}
+
+    def top_authors(self, live_id: str, top_n: int = 10, sort_by: str = "messages", user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        if not messages:
+            return None
+
+        authors = list_top_authors(self.db, live_id, user_id=user_id, top_n=top_n)
+
+        if not authors:
+            return {"live_id": live_id, "total_authors": 0, "authors": []}
+
+        # Calcula sentimento médio por autor (sentimento dominante)
+        for author_data in authors:
+            author_msgs = [m for m in messages if m.author == author_data["author"]]
+            if author_msgs:
+                sentiments = self.sentiment_analyzer.analyze([m.message for m in author_msgs])
+                dominant = max(sentiments, key=sentiments.get)
+                author_data["avg_sentiment"] = dominant
+            else:
+                author_data["avg_sentiment"] = "Neutro"
+
+        if sort_by == "avg_sentiment":
+            sentiment_order = {"Positivo": 0, "Neutro": 1, "Negativo": 2}
+            authors.sort(key=lambda a: sentiment_order.get(a["avg_sentiment"], 1))
+
+        # Conta total de autores distintos
+        from sqlalchemy import func
+        total = len(set(m.author for m in messages))
+
+        return {
+            "live_id": live_id,
+            "total_authors": total,
+            "authors": authors,
+        }
+
     def emoji_analysis(self, live_id: str, top_n: int = 20, user_id: int | None = None) -> dict | None:
         messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:

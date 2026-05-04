@@ -244,3 +244,71 @@ class TestTopics:
     def test_empty(self, client, auth_client):
         response = auth_client.get("/api/chat/vazia/topics")
         assert response.status_code == 404
+
+class TestTopAuthors:
+    def test_with_data(self, client, auth_client):
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "Fulano", "message": "Boa noite"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "Fulano", "message": "Mais uma"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "Ciclano", "message": "Soh uma"},
+        )
+
+        response = auth_client.get("/api/chat/live1/top-authors?top_n=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["live_id"] == "live1"
+        assert data["total_authors"] == 2
+        assert len(data["authors"]) == 2
+        assert data["authors"][0]["author"] == "Fulano"
+        assert data["authors"][0]["messages"] == 2
+        assert data["authors"][1]["author"] == "Ciclano"
+        assert data["authors"][1]["messages"] == 1
+
+    def test_empty_live(self, client, auth_client):
+        response = auth_client.get("/api/chat/vazia/top-authors")
+        assert response.status_code == 404
+
+    def test_sorting(self, client, auth_client):
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "C", "message": "uma"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "B", "message": "duas"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "B", "message": "duas"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "tres"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "tres"},
+        )
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live1", "author": "A", "message": "tres"},
+        )
+
+        response = auth_client.get("/api/chat/live1/top-authors?top_n=3")
+        assert response.status_code == 200
+        data = response.json()
+        authors = data["authors"]
+        assert authors[0]["author"] == "A"
+        assert authors[0]["messages"] == 3
+        assert authors[1]["author"] == "B"
+        assert authors[1]["messages"] == 2
+        assert authors[2]["author"] == "C"
+        assert authors[2]["messages"] == 1
+

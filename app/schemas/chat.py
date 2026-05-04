@@ -108,3 +108,17 @@ class EmojiResponse(BaseModel):
     live_id: str
     total_emojis: int
     emojis: list[EmojiItem]
+
+
+class AuthorItem(BaseModel):
+    author: str
+    messages: int
+    first_message_at: datetime | None = None
+    last_message_at: datetime | None = None
+    avg_sentiment: str | None = None
+
+
+class TopAuthorsResponse(BaseModel):
+    live_id: str
+    total_authors: int
+    authors: list[AuthorItem]
