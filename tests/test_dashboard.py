@@ -9,3 +9,19 @@ class TestDashboard:
     def test_contains_title(self, client):
         response = client.get("/dashboard")
         assert "PulsoDaLive" in response.text
+
+    def test_contains_new_sections(self, client):
+        response = client.get("/dashboard")
+        html = response.text
+        assert "emojis-chart" in html
+        assert "top-authors-list" in html
+        assert "export-json" in html
+        assert "term-timeline-chart" in html
+
+    def test_contains_new_js_functions(self, client):
+        response = client.get("/dashboard")
+        html = response.text
+        assert "loadEmojis" in html
+        assert "loadTopAuthors" in html
+        assert "loadTermTimeline" in html
+        assert "updateExportLinks" in html

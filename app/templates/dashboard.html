@@ -65,12 +65,33 @@
             <h2>🧠 Tópicos (TF-IDF)</h2>
             <canvas id="topics-chart"></canvas>
         </div>
+        <div class="card">
+            <h2>😀 Emojis mais usados</h2>
+            <canvas id="emojis-chart"></canvas>
+        </div>
+        <div class="card">
+            <h2>👥 Top Autores</h2>
+            <div id="top-authors-list"></div>
+        </div>
+        <div class="card">
+            <h2>🔍 Evolucao de termo na timeline</h2>
+            <input type="text" id="term-input" placeholder="Buscar termo..." style="width:60%; display:inline;">
+            <button id="term-search-btn" style="display:inline;">Buscar</button>
+            <canvas id="term-timeline-chart" style="margin-top:1rem;"></canvas>
+        </div>
+        <div class="card">
+            <h2>📥 Exportar dados</h2>
+            <a id="export-json" href="#" class="export-link">JSON</a> |
+            <a id="export-csv" href="#" class="export-link">CSV</a> |
+            <a id="export-xlsx" href="#" class="export-link">XLSX</a>
+            <style>.export-link{color:#3b82f6;text-decoration:none;}.export-link:hover{text-decoration:underline;}</style>
+        </div>
     </div>
 
 <script>
 const API = '/api/chat';
 
-let timelineChart, peaksChart, wordsChart, topicsChart;
+let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart;
 
 async function loadLives() {
     const res = await fetch(`${API}/lives`, { headers: getHeaders() });
@@ -90,6 +111,10 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadPeaks(liveId),
         loadWords(liveId),
         loadTopics(liveId),
+        loadEmojis(liveId),
+        loadTopAuthors(liveId),
+        loadTermTimeline(liveId),
+        updateExportLinks(liveId),
     ]);
 });
 
@@ -162,6 +187,73 @@ async function loadTopics(liveId) {
         options: { responsive: true, indexAxis: 'y' }
     });
 }
+
+async function loadEmojis(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/emojis?top_n=10', { headers: getHeaders() });
+        const data = await res.json();
+        const labels = data.emojis.map(e => e.emoji);
+        const counts = data.emojis.map(e => e.count);
+        const colors = data.emojis.map(e => e.sentiment === 'Positivo' ? '#22c55e' : e.sentiment === 'Negativo' ? '#ef4444' : '#94a3b8');
+        if (emojisChart) emojisChart.destroy();
+        emojisChart = new Chart(document.getElementById('emojis-chart'), {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Ocorrencias', data: counts, backgroundColor: colors }] },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    } catch (e) { }
+}
+
+async function loadTopAuthors(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/top-authors?top_n=10', { headers: getHeaders() });
+        const data = await res.json();
+        const list = document.getElementById('top-authors-list');
+        let html = '<table style="width:100%; border-collapse:collapse;"><tr style="color:#94a3b8;font-size:13px;"><th style="text-align:left;padding:4px;">Autor</th><th style="text-align:right;padding:4px;">Msgs</th><th style="text-align:right;padding:4px;">Sentimento</th></tr>';
+        data.authors.forEach(a => {
+            const color = a.avg_sentiment === 'Positivo' ? '#22c55e' : a.avg_sentiment === 'Negativo' ? '#ef4444' : '#94a3b8';
+            html += '<tr><td style="padding:4px;">' + a.author + '</td><td style="text-align:right;padding:4px;">' + a.messages + '</td><td style="text-align:right;padding:4px;color:' + color + ';">' + (a.avg_sentiment || 'Neutro') + '</td></tr>';
+        });
+        html += '</table>';
+        list.innerHTML = html;
+    } catch (e) { }
+}
+
+async function loadTermTimeline(liveId, term) {
+    if (!term) term = document.getElementById('term-input').value.trim();
+    if (!term) return;
+    try {
+        const res = await fetch(API + '/' + liveId + '/topic-timeline?term=' + encodeURIComponent(term) + '&interval_minutes=5', { headers: getHeaders() });
+        const data = await res.json();
+        const labels = data.timeline.map(b => b.start_time.slice(11,16));
+        const counts = data.timeline.map(b => b.count);
+        const totals = data.timeline.map(b => b.total_messages);
+        if (termTimelineChart) termTimelineChart.destroy();
+        termTimelineChart = new Chart(document.getElementById('term-timeline-chart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: term + ' (ocorrencias)', data: counts, borderColor: '#3b82f6', fill: false },
+                    { label: 'Total msgs', data: totals, borderColor: '#94a3b8', fill: false, borderDash: [4,4] }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    } catch (e) { }
+}
+
+function updateExportLinks(liveId) {
+    const base = API + '/' + liveId + '/export';
+    document.getElementById('export-json').href = base + '?format=json';
+    document.getElementById('export-csv').href = base + '?format=csv';
+    document.getElementById('export-xlsx').href = base + '?format=xlsx';
+}
+
+document.getElementById('term-search-btn').addEventListener('click', () => {
+    const liveId = document.getElementById('live-select').value;
+    if (liveId) loadTermTimeline(liveId);
+});
 
 loadLives();
 </script>
