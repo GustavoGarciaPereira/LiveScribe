@@ -1,62 +1,111 @@
 # REASONIX.md — Contexto do projeto para o Reasonix
 
-## Identificação
+## Identificacao
 
 - **Nome do projeto:** PulsoDaLive / LiveScribe
-- **Objetivo:** Coletar chat de lives de multiplas plataformas e analisar discurso (frequencia de palavras, sentimentos, topicos, picos de engajamento)
-- **Stack:** FastAPI + SQLAlchemy + SQLite + LeIA (lexico) + scikit-learn + Extensao Chrome
+- **Objetivo:** Coletar chat de lives de multiplas plataformas e analisar discurso (frequencia de palavras, sentimentos, topicos, picos de engajamento, emojis, ranking de espectadores)
+- **Stack:** FastAPI + SQLAlchemy + SQLite + LeIA (lexico) + scikit-learn + regex + Extensao Chrome
 
 ## Arquitetura atual
 
 ```
 app/
-├── api/deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor)
-├── api/routes/chat.py       -> 8 endpoints
-├── services/chat.py         -> ChatService (recebe SentimentAnalyzer + TopicExtractor por DI)
-├── services/sentiment.py    -> SentimentAnalyzer (ABC) + LeiaSentimentAnalyzer
-├── services/topics.py       -> TopicExtractor (ABC) + TfidfTopicExtractor (sklearn)
-├── models/message.py        -> Message ORM (id, live_id, author, message, platform, created_at)
-├── repositories/messages.py -> create_message, list_messages_by_live, list_lives
-├── core/config.py           -> Configuracoes do .env (pydantic-settings)
-├── core/stopwords.py        -> stopwords em portugues
-├── infrastructure/database.py -> SQLAlchemy engine + SessionLocal
-├── templates/dashboard.html -> Dashboard interativo com Chart.js
-└── main.py                  -> App factory, lifespan, CORS, healthcheck, /dashboard
+├── api/
+│   ├── deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor + RegexEmojiExtractor), get_current_user, get_current_user_optional_v2
+│   └── routes/
+│       ├── auth.py          -> register, login, login/google, callback/google, /me
+│       ├── chat.py          -> 12 endpoints de analise + export
+│       └── webhooks.py      -> CRUD de webhooks (create, list, delete)
+├── core/
+│   ├── config.py            -> Configuracoes do .env (pydantic-settings)
+│   ├── stopwords.py         -> Stopwords em portugues
+│   └── emoji_sentiment.py   -> Mapeamento de 50 emojis para sentimento (Positivo/Negativo/Neutro)
+├── infrastructure/
+│   └── database.py          -> SQLAlchemy engine + SessionLocal (SQLite)
+├── models/
+│   ├── message.py           -> Message ORM (id, live_id, author, message, platform, user_id, created_at)
+│   ├── user.py              -> User ORM (email, name, google_id, password_hash/bcrypt, provider, is_active)
+│   └── webhook.py           -> Webhook ORM (url, event, user_id, is_active)
+├── repositories/
+│   └── messages.py          -> create_message, list_messages_by_live, list_lives, list_top_authors
+├── schemas/
+│   ├── auth.py              -> LoginRequest, RegisterRequest, TokenResponse, UserInfo
+│   ├── chat.py              -> ChatMessage, MessageResponse, WordFrequency*, Sentiment*, LiveSummary, TimelineBucket, EngagementPeak, TopicItem, TopicBucket, EmojiItem, AuthorItem + Responses
+│   └── webhook.py           -> WebhookCreate, WebhookResponse
+├── services/
+│   ├── auth.py              -> create_access_token, verify_token (JWT, jose)
+│   ├── chat.py              -> ChatService (recebe SentimentAnalyzer + TopicExtractor + EmojiExtractor por DI)
+│   ├── emojis.py            -> EmojiExtractor (ABC) + RegexEmojiExtractor (regex Extended_Pictographic)
+│   ├── export.py            -> ExportService (JSON, CSV, XLSX)
+│   ├── sentiment.py         -> SentimentAnalyzer (ABC) + LeiaSentimentAnalyzer (LeIA)
+│   ├── topics.py            -> TopicExtractor (ABC) + TfidfTopicExtractor (sklearn)
+│   └── webhook.py           -> trigger_webhooks (POST para URLs cadastradas)
+├── templates/
+│   └── dashboard.html       -> Dashboard interativo com Chart.js
+└── main.py                  -> App factory, lifespan, CORS, healthcheck, /dashboard, migracoes legadas
+
 frontend/
-└── content.js               -> Extensao Chrome (v4): MutationObserver + POST /api/chat/messages + platform
+├── content.js               -> Extensao Chrome (v4): MutationObserver no #chatframe do YouTube + token JWT
+├── popup.html               -> Popup de login dark mode
+├── popup.js                 -> Login/logout via API, armazena token no chrome.storage.local
+└── manifest.json            -> Manifest V3, permissões youtube + localhost
+
 tests/
-├── conftest.py              -> Fixtures: db_session, mock_analyzer, mock_topic_extractor, client
-├── test_deps.py
+├── conftest.py              -> Fixtures: db_session, mock_analyzer, mock_topic_extractor, client, auth_client
+├── test_auth.py
 ├── test_dashboard.py
+├── test_deps.py
+├── test_emojis.py           -> 4 testes de extracao de emoji
+├── test_export.py
 ├── test_models.py
 ├── test_repositories.py
-├── test_routes.py
+├── test_routes.py           -> 44 testes (todas as rotas incluindo topic-timeline, top-authors)
 ├── test_schemas.py
-└── test_services.py
+├── test_services.py         -> 20 testes (incluindo sentiment timeline, peaks, topics, emojis)
+└── test_webhooks.py
 ```
 
 ## Decisoes de design
 
-- **Sentimento desacoplado:** Interface `SentimentAnalyzer` permite trocar o analisador sem mexer no ChatService.
+- **Sentimento desacoplado:** Interface `SentimentAnalyzer` (ABC) permite trocar o analisador sem mexer no ChatService. Implementacao atual: LeiaSentimentAnalyzer (VADER adaptado para portugues).
 - **Topicos desacoplados:** Interface `TopicExtractor` (ABC) + `TfidfTopicExtractor` (sklearn), mesmo padrao do SentimentAnalyzer.
-- **Platform:** Coluna `platform VARCHAR(50) DEFAULT 'youtube'`. Extensao envia `"platform": "youtube"`. Migracao automatica no lifespan para bancos legados.
-- **Banco:** SQLite em `data/app.db`. Tabela `messages` com colunas: id, live_id, author, message, platform, created_at.
-- **Extensao:** Observa o iframe `#chatframe` do YouTube via MutationObserver. Posta em `http://127.0.0.1:8000/api/chat/messages`.
+- **Emojis desacoplados:** Interface `EmojiExtractor` (ABC) + `RegexEmojiExtractor` (regex Extended_Pictographic), injetado no ChatService.
+- **Autenticacao JWT:** python-jose, tokens de 24h, providers local (bcrypt) e Google OAuth2. Rotas GET protegidas com `get_current_user`, POST /messages com `get_current_user_optional_v2`.
+- **Filtro por user_id:** Todas as queries de leitura filtram por `user_id` (com fallback para NULL para mensagens legadas da extensao nao logada).
+- **Platform:** Coluna `platform VARCHAR(50) DEFAULT 'youtube'`. Extensao envia `"platform": "youtube"`. Migracao automatica no lifespan.
+- **Banco:** SQLite em `data/app.db`. Tabelas: `messages` (id, live_id, author, message, platform, user_id, created_at), `users` (email, name, google_id, password_hash, provider, is_active), `webhooks` (url, event, user_id, is_active).
+- **Extensao:** Observa o iframe `#chatframe` do YouTube via MutationObserver. Posta em `http://127.0.0.1:8000/api/chat/messages` com token JWT opcional.
 - **Type hints modernos:** Python 3.10+ sintaxe (`list[X]`, `X | None`, `dict[K,V]`).
+- **Regex para emojis:** `\p{Extended_Pictographic}` no modulo `regex` — evita capturar digitos (0-9) que o `\p{Emoji}` incluiria.
 
 ## Endpoints
 
-| Metodo | Rota | Descricao |
-|--------|------|-----------|
-| GET | / | Healthcheck |
-| POST | /api/chat/messages | Salvar mensagem |
-| GET | /api/chat/lives | Lista lives capturadas |
-| GET | /api/chat/{live_id}/word-frequency | Top-N palavras |
-| GET | /api/chat/{live_id}/sentiment | Analise de sentimentos |
-| GET | /api/chat/{live_id}/sentiment-timeline | Linha do tempo por bucket |
-| GET | /api/chat/{live_id}/engagement-peaks | Picos de engajamento |
-| GET | /api/chat/{live_id}/topics | Topicos via TF-IDF |
-| GET | /dashboard | Dashboard HTML (Chart.js) |
+| Metodo | Rota | Auth | Descricao |
+|--------|------|------|-----------|
+| GET | / | — | Healthcheck |
+| GET | /dashboard | — | Dashboard HTML (Chart.js) |
+| **Auth** |
+| POST | /api/auth/register | — | Registrar conta local |
+| POST | /api/auth/login | — | Login email/senha → JWT |
+| GET | /api/auth/login/google | — | Redirect Google OAuth2 |
+| GET | /api/auth/callback/google | — | Callback Google → JWT |
+| GET | /api/auth/me | 🔒 | Perfil do usuario |
+| **Chat** |
+| POST | /api/chat/messages | opcional | Salvar mensagem do chat |
+| GET | /api/chat/lives | 🔒 | Lista lives do usuario |
+| GET | /api/chat/{live_id}/word-frequency | 🔒 | Top-N palavras |
+| GET | /api/chat/{live_id}/sentiment | 🔒 | Analise de sentimentos |
+| GET | /api/chat/{live_id}/sentiment-timeline | 🔒 | Timeline de sentimentos por bucket |
+| GET | /api/chat/{live_id}/engagement-peaks | 🔒 | Picos de engajamento |
+| GET | /api/chat/{live_id}/topics | 🔒 | Topicos via TF-IDF |
+| GET | /api/chat/{live_id}/topic-timeline | 🔒 | Evolucao de frequencia de um termo |
+| GET | /api/chat/{live_id}/emojis | 🔒 | Ranking de emojis com sentimento |
+| GET | /api/chat/{live_id}/top-authors | 🔒 | Ranking de espectadores por mensagens |
+| GET | /api/chat/{live_id}/export | 🔒 | Exportar JSON/CSV/XLSX |
+| **Webhooks** |
+| POST | /api/webhooks | 🔒 | Criar webhook |
+| GET | /api/webhooks | 🔒 | Listar webhooks |
+| DELETE | /api/webhooks/{id} | 🔒 | Deletar webhook |
 
 ## Tarefas concluidas
 
@@ -64,7 +113,7 @@ tests/
 1. Rota da extensao alinhada com API
 2. Sentimento funcional com LeIA
 3. Chamada dupla do word_frequency removida
-4. Migracao para Pydantic v2 (model_validate, SettingsConfigDict, json_schema_extra)
+4. Migracao para Pydantic v2
 5. Substituicao de on_event por lifespan handler
 6. Corrigido DeprecationWarning do datetime.utcnow
 7. Type hints modernos (list, dict, X | None)
@@ -72,15 +121,35 @@ tests/
 9. 28+ testes, 97% de cobertura
 
 ### Fase 2 — Analises temporais, topicos, dashboard e plataformas
-1. Coluna platform adicionada ao Message (default youtube)
+1. Coluna platform adicionada (default youtube)
 2. Migracao automatica ALTER TABLE no startup
-3. Endpoint GET /api/chat/lives (GROUP BY lives)
-4. Endpoint GET /{live_id}/sentiment-timeline (buckets temporais)
-5. Endpoint GET /{live_id}/engagement-peaks (janelas de mensagens)
-6. Endpoint GET /{live_id}/topics (TF-IDF via sklearn)
+3. Endpoint GET /api/chat/lives (GROUP BY)
+4. Endpoint GET /{live_id}/sentiment-timeline (buckets)
+5. Endpoint GET /{live_id}/engagement-peaks (janelas)
+6. Endpoint GET /{live_id}/topics (TF-IDF)
 7. TopicExtractor ABC + TfidfTopicExtractor
-8. Dashboard HTML interativo em /dashboard (Chart.js CDN)
+8. Dashboard HTML interativo (Chart.js)
 9. 51+ testes, 93% de cobertura
+
+### Fase 3 — Autenticacao e protecao de rotas
+1. Model User (email, google_id, password_hash, provider)
+2. Rotas de auth: register, login, Google OAuth2, /me
+3. Protecao JWT em todas as rotas GET de chat
+4. Filtro por user_id no repositorio e servico
+5. get_current_user_optional para POST /messages
+6. Popup de login na extensao Chrome
+7. content.js envia token JWT no header Authorization
+8. Webhooks CRUD + trigger em new_message e peak_engagement
+9. 60+ testes, 86% de cobertura
+
+### Fase 4 — Novas analises (topic-timeline, emojis, top-authors)
+1. Endpoint GET /{live_id}/topic-timeline — evolucao de termo ao longo da live
+2. Endpoint GET /{live_id}/emojis — ranking de emojis com sentimento (50 emojis mapeados)
+3. EmojiExtractor ABC + RegexEmojiExtractor (regex Extended_Pictographic)
+4. Endpoint GET /{live_id}/top-authors — ranking de espectadores por mensagens + sentimento medio
+5. Repository: list_top_authors com SQL GROUP BY
+6. Export endpoint: JSON, CSV, XLSX
+7. 80 testes, 90% de cobertura
 
 ## Comandos uteis
 
@@ -94,12 +163,10 @@ pip install -r requirements.txt
 # Testar endpoints
 curl -X POST http://127.0.0.1:8000/api/chat/messages -H "Content-Type: application/json" -d '{"author":"Test","message":"Boa noite","live_id":"test"}'
 curl http://127.0.0.1:8000/api/chat/lives
-curl http://127.0.0.1:8000/api/chat/test/sentiment-timeline?interval_minutes=5
-curl http://127.0.0.1:8000/api/chat/test/topics?top_n=10
+curl http://127.0.0.1:8000/api/chat/test/emojis?top_n=20
+curl http://127.0.0.1:8000/api/chat/test/top-authors?top_n=10
+curl http://127.0.0.1:8000/api/chat/test/topic-timeline?term=gato
 
 # Rodar testes
 pytest -v --cov=app --cov-report=term-missing
 ```
-- Prompt: Fase 3 — Feature 2: Proteção de rotas + filtro por user_id + login na extensãoVocê é um engenheiro de software experiente em Python, FastAPI e SQLAlchemy. O projeto **PulsoDaLive / LiveScribe** possui 12 endpoints, 60 testes e 86% de cobertura. Agora é necessário:1. **Proteger todas as rotas de chat** com autenticação JWT obrigatória (`get_current_user`)2. **Filtrar dados por `user_id`** — cada usuário vê apenas suas próprias lives/mensagens3. **Adaptar a extensão Chrome** para enviar o token JWT no header `Authorization`## 1. Proteger as rotas de chat existentes**Arquivo: `app/api/routes/chat.py`**Adicione `user: User = Depends(get_current_user)` em **todas** as rotas de consulta (`GET`):| Rota | Mudança ||------|---------|| `GET /api/chat/lives` | + `user`, filtrar por `user_id` || `GET /{live_id}/word-frequency` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/sentiment` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/sentiment-timeline` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/engagement-peaks` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/topics` | + `user`, filtrar por `user_id` e `live_id` || `POST /api/chat/messages` | Manter opcional (`get_current_user_optional`), mas associar `user_id` quando disponível |## 2. Atualizar repositório e serviço para filtrar por user_id**Arquivo: `app/repositories/messages.py`**- `list_lives(db, user_id)` — filtra lives que pertencem ao usuário (mensagens com aquele `user_id`)- `list_messages_by_live(db, live_id, user_id)` — filtra mensagens da live E do usuário**Arquivo: `app/services/chat.py`**Todos os métodos (`word_frequency`, `sentiment_summary`, `sentiment_timeline`, `engagement_peaks`, `extract_topics`) passam a receber `user_id` e repassar ao repositório.## 3. Criar rota de token programático para a extensão**Arquivo: `app/api/routes/auth.py`**Adicione um novo endpoint que gera um token JWT a partir de email/senha, pensado para ser chamado pela extensão:```python@router.post("/token", response_model=TokenResponse)def get_token(payload: LoginRequest, db=Depends(get_db)):    """Obtém token JWT para uso programático (extensão Chrome, scripts, etc.)"""    user = db.query(User).filter(User.email == payload.email).first()    if not user or not user.password_hash or not user.verify_password(payload.password):        raise HTTPException(status_code=401, detail="Email ou senha inválidos")        access_token = create_access_token(user.id)    user_info = UserInfo(id=user.id, email=user.email, name=user.name, provider=user.provider)    return TokenResponse(access_token=access_token, user=user_info)```## 4. Criar popup de login na extensão Chrome**Novo arquivo: `frontend/popup.html`**```html<!DOCTYPE html><html><head>    <meta charset="UTF-8">    <title>PulsoDaLive — Login</title>    <style>        body { font-family: sans-serif; padding: 20px; width: 300px; }        input { width: 100%; padding: 8px; margin: 5px 0; box-sizing: border-box; }        button { width: 100%; padding: 10px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; }        #status { margin-top: 10px; font-size: 14px; }        .error { color: red; }        .success { color: green; }    </style></head><body>    <h3>PulsoDaLive</h3>    <div id="login-form">        <input type="email" id="email" placeholder="Email">        <input type="password" id="password" placeholder="Senha">        <button id="login-btn">Entrar</button>    </div>    <div id="logged-in" style="display:none;">        <p>✅ Logado como <span id="user-name"></span></p>        <button id="logout-btn">Sair</button>    </div>    <div id="status"></div>    <script src="popup.js"></script></body></html>```**Novo arquivo: `frontend/popup.js`**```javascriptconst API_BASE = 'http://127.0.0.1:8000';document.addEventListener('DOMContentLoaded', () => {    const loginForm = document.getElementById('login-form');    const loggedIn = document.getElementById('logged-in');    const userName = document.getElementById('user-name');    const status = document.getElementById('status');    const loginBtn = document.getElementById('login-btn');    const logoutBtn = document.getElementById('logout-btn');    const emailInput = document.getElementById('email');    const passwordInput = document.getElementById('password');    // Verifica se já tem token salvo    chrome.storage.local.get(['token', 'user'], (result) => {        if (result.token && result.user) {            showLoggedIn(result.user);        }    });    loginBtn.addEventListener('click', async () => {        const email = emailInput.value.trim();        const password = passwordInput.value.trim();        if (!email || !password) {            status.textContent = 'Preencha email e senha.';            status.className = 'error';            return;        }        status.textContent = 'Autenticando...';        status.className = '';        try {            const resp = await fetch(`${API_BASE}/api/auth/token`, {                method: 'POST',                headers: { 'Content-Type': 'application/json' },                body: JSON.stringify({ email, password })            });            const data = await resp.json();            if (!resp.ok) {                status.textContent = data.detail || 'Erro ao autenticar.';                status.className = 'error';                return;            }            chrome.storage.local.set({ token: data.access_token, user: data.user }, () => {                showLoggedIn(data.user);            });        } catch (e) {            status.textContent = 'Servidor offline.';            status.className = 'error';        }    });    logoutBtn.addEventListener('click', () => {        chrome.storage.local.remove(['token', 'user'], () => {            loginForm.style.display = 'block';            loggedIn.style.display = 'none';            status.textContent = '';        });    });    function showLoggedIn(user) {        loginForm.style.display = 'none';        loggedIn.style.display = 'block';        userName.textContent = user.email;        status.textContent = '';    }});```**Atualizar `frontend/manifest.json`** para incluir o popup:```json{  "manifest_version": 3,  "name": "PulsoDaLive",  "version": "1.0",  "description": "Coleta mensagens do chat de lives do YouTube para análise posterior.",  "permissions": ["storage"],  "host_permissions": [    "*://www.youtube.com/*",    "http://127.0.0.1:8000/*",    "http://localhost:8000/*"  ],  "action": {    "default_popup": "popup.html",    "default_title": "PulsoDaLive"  },  "content_scripts": [    {      "matches": ["*://www.youtube.com/watch?v=*"],      "js": ["content.js"]    }  ]}```## 5. Atualizar `content.js` para enviar token JWTNo `fetch` do `content.js`, leia o token do `chrome.storage.local` e adicione o header `Authorization`:```javascript// Dentro do MutationObserver, onde faz o fetch:chrome.storage.local.get(['token'], (result) => {    const headers = { 'Content-Type': 'application/json' };    if (result.token) {        headers['Authorization'] = `Bearer ${result.token}`;    }    fetch('http://127.0.0.1:8000/api/chat/messages', {        method: 'POST',        headers: headers,        body: JSON.stringify({ author, message, live_id: liveId, platform: 'youtube' })    })    .then(response => response.json())    .then(data => console.log('%c[RESPOSTA API]', 'color: blue', data))    .catch((error) => console.error('%c[ERRO FETCH]', 'color: red', error));});```## 6. Testes**Atualizar `tests/conftest.py`**:- `auth_client` fixture já existe e faz register + login → gera token- Atualize `client` para **não** autenticar (testes de 401)**Atualizar `tests/test_routes.py`**:- Testes de rotas protegidas **sem token** → 401- Testes de rotas protegidas **com token** → 200 (usando `auth_client`)- Teste `POST /api/chat/messages` **com token** → associa `user_id`- Teste `POST /api/chat/messages` **sem token** → cria mensagem sem `user_id` (compatível com extensão não logada)- Teste `GET /api/chat/lives` com token → retorna apenas lives do usuário**Novo `tests/test_auth.py`**:- `test_get_token_endpoint` — POST /api/auth/token com credenciais válidas → 200 + token- `test_get_token_invalid` — credenciais erradas → 401## 7. Executar e validar```bashpython -m pytest tests/ -v --cov=app --cov-report=term-missing```**Resultado esperado:** 65+ testes passando, cobertura ≥90%.## 8. Atualizar documentação- `CLAUDE.md`: novas rotas protegidas, fluxo de auth na extensão- `REASONIX.md`: arquitetura de proteção, popup da extensão- `README.md`: seção "Autenticação" com instruções de registro e login## Instruções de saída1. Liste os arquivos criados/modificados e as mudanças principais2. Mostre o resultado de `pytest -v --cov=app`3. Explique as decisões de design (get_current_user_optional no POST, token programático, popup)4. Apresente mensagem de commit
-- Prompt: Fase 3 — Feature 2: Proteção de rotas + filtro por user_id + login na extensãoVocê é um engenheiro de software experiente em Python, FastAPI e SQLAlchemy. O projeto **PulsoDaLive / LiveScribe** possui 12 endpoints, 60 testes e 86% de cobertura. Agora é necessário:1. **Proteger todas as rotas de chat** com autenticação JWT obrigatória (`get_current_user`)2. **Filtrar dados por `user_id`** — cada usuário vê apenas suas próprias lives/mensagens3. **Adaptar a extensão Chrome** para enviar o token JWT no header `Authorization`## 1. Proteger as rotas de chat existentes**Arquivo: `app/api/routes/chat.py`**Adicione `user: User = Depends(get_current_user)` em **todas** as rotas de consulta (`GET`):| Rota | Mudança ||------|---------|| `GET /api/chat/lives` | + `user`, filtrar por `user_id` || `GET /{live_id}/word-frequency` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/sentiment` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/sentiment-timeline` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/engagement-peaks` | + `user`, filtrar por `user_id` e `live_id` || `GET /{live_id}/topics` | + `user`, filtrar por `user_id` e `live_id` || `POST /api/chat/messages` | Manter opcional (`get_current_user_optional`), mas associar `user_id` quando disponível |## 2. Atualizar repositório e serviço para filtrar por user_id**Arquivo: `app/repositories/messages.py`**- `list_lives(db, user_id)` — filtra lives que pertencem ao usuário (mensagens com aquele `user_id`)- `list_messages_by_live(db, live_id, user_id)` — filtra mensagens da live E do usuário**Arquivo: `app/services/chat.py`**Todos os métodos (`word_frequency`, `sentiment_summary`, `sentiment_timeline`, `engagement_peaks`, `extract_topics`) passam a receber `user_id` e repassar ao repositório.## 3. Criar rota de token programático para a extensão**Arquivo: `app/api/routes/auth.py`**Adicione um novo endpoint que gera um token JWT a partir de email/senha, pensado para ser chamado pela extensão:```python@router.post("/token", response_model=TokenResponse)def get_token(payload: LoginRequest, db=Depends(get_db)):    """Obtém token JWT para uso programático (extensão Chrome, scripts, etc.)"""    user = db.query(User).filter(User.email == payload.email).first()    if not user or not user.password_hash or not user.verify_password(payload.password):        raise HTTPException(status_code=401, detail="Email ou senha inválidos")        access_token = create_access_token(user.id)    user_info = UserInfo(id=user.id, email=user.email, name=user.name, provider=user.provider)    return TokenResponse(access_token=access_token, user=user_info)```## 4. Criar popup de login na extensão Chrome**Novo arquivo: `frontend/popup.html`**```html<!DOCTYPE html><html><head>    <meta charset="UTF-8">    <title>PulsoDaLive — Login</title>    <style>        body { font-family: sans-serif; padding: 20px; width: 300px; }        input { width: 100%; padding: 8px; margin: 5px 0; box-sizing: border-box; }        button { width: 100%; padding: 10px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; }        #status { margin-top: 10px; font-size: 14px; }        .error { color: red; }        .success { color: green; }    </style></head><body>    <h3>PulsoDaLive</h3>    <div id="login-form">        <input type="email" id="email" placeholder="Email">        <input type="password" id="password" placeholder="Senha">        <button id="login-btn">Entrar</button>    </div>    <div id="logged-in" style="display:none;">        <p>✅ Logado como <span id="user-name"></span></p>        <button id="logout-btn">Sair</button>    </div>    <div id="status"></div>    <script src="popup.js"></script></body></html>```**Novo arquivo: `frontend/popup.js`**```javascriptconst API_BASE = 'http://127.0.0.1:8000';document.addEventListener('DOMContentLoaded', () => {    const loginForm = document.getElementById('login-form');    const loggedIn = document.getElementById('logged-in');    const userName = document.getElementById('user-name');    const status = document.getElementById('status');    const loginBtn = document.getElementById('login-btn');    const logoutBtn = document.getElementById('logout-btn');    const emailInput = document.getElementById('email');    const passwordInput = document.getElementById('password');    // Verifica se já tem token salvo    chrome.storage.local.get(['token', 'user'], (result) => {        if (result.token && result.user) {            showLoggedIn(result.user);        }    });    loginBtn.addEventListener('click', async () => {        const email = emailInput.value.trim();        const password = passwordInput.value.trim();        if (!email || !password) {            status.textContent = 'Preencha email e senha.';            status.className = 'error';            return;        }        status.textContent = 'Autenticando...';        status.className = '';        try {            const resp = await fetch(`${API_BASE}/api/auth/token`, {                method: 'POST',                headers: { 'Content-Type': 'application/json' },                body: JSON.stringify({ email, password })            });            const data = await resp.json();            if (!resp.ok) {                status.textContent = data.detail || 'Erro ao autenticar.';                status.className = 'error';                return;            }            chrome.storage.local.set({ token: data.access_token, user: data.user }, () => {                showLoggedIn(data.user);            });        } catch (e) {            status.textContent = 'Servidor offline.';            status.className = 'error';        }    });    logoutBtn.addEventListener('click', () => {        chrome.storage.local.remove(['token', 'user'], () => {            loginForm.style.display = 'block';            loggedIn.style.display = 'none';            status.textContent = '';        });    });    function showLoggedIn(user) {        loginForm.style.display = 'none';        loggedIn.style.display = 'block';        userName.textContent = user.email;        status.textContent = '';    }});```**Atualizar `frontend/manifest.json`** para incluir o popup:```json{  "manifest_version": 3,  "name": "PulsoDaLive",  "version": "1.0",  "description": "Coleta mensagens do chat de lives do YouTube para análise posterior.",  "permissions": ["storage"],  "host_permissions": [    "*://www.youtube.com/*",    "http://127.0.0.1:8000/*",    "http://localhost:8000/*"  ],  "action": {    "default_popup": "popup.html",    "default_title": "PulsoDaLive"  },  "content_scripts": [    {      "matches": ["*://www.youtube.com/watch?v=*"],      "js": ["content.js"]    }  ]}```## 5. Atualizar `content.js` para enviar token JWTNo `fetch` do `content.js`, leia o token do `chrome.storage.local` e adicione o header `Authorization`:```javascript// Dentro do MutationObserver, onde faz o fetch:chrome.storage.local.get(['token'], (result) => {    const headers = { 'Content-Type': 'application/json' };    if (result.token) {        headers['Authorization'] = `Bearer ${result.token}`;    }    fetch('http://127.0.0.1:8000/api/chat/messages', {        method: 'POST',        headers: headers,        body: JSON.stringify({ author, message, live_id: liveId, platform: 'youtube' })    })    .then(response => response.json())    .then(data => console.log('%c[RESPOSTA API]', 'color: blue', data))    .catch((error) => console.error('%c[ERRO FETCH]', 'color: red', error));});```## 6. Testes**Atualizar `tests/conftest.py`**:- `auth_client` fixture já existe e faz register + login → gera token- Atualize `client` para **não** autenticar (testes de 401)**Atualizar `tests/test_routes.py`**:- Testes de rotas protegidas **sem token** → 401- Testes de rotas protegidas **com token** → 200 (usando `auth_client`)- Teste `POST /api/chat/messages` **com token** → associa `user_id`- Teste `POST /api/chat/messages` **sem token** → cria mensagem sem `user_id` (compatível com extensão não logada)- Teste `GET /api/chat/lives` com token → retorna apenas lives do usuário**Novo `tests/test_auth.py`**:- `test_get_token_endpoint` — POST /api/auth/token com credenciais válidas → 200 + token- `test_get_token_invalid` — credenciais erradas → 401## 7. Executar e validar```bashpython -m pytest tests/ -v --cov=app --cov-report=term-missing```**Resultado esperado:** 65+ testes passando, cobertura ≥90%.## 8. Atualizar documentação- `CLAUDE.md`: novas rotas protegidas, fluxo de auth na extensão- `REASONIX.md`: arquitetura de proteção, popup da extensão- `README.md`: seção "Autenticação" com instruções de registro e login## Instruções de saída1. Liste os arquivos criados/modificados e as mudanças principais2. Mostre o resultado de `pytest -v --cov=app`3. Explique as decisões de design (get_current_user_optional no POST, token programático, popup)4. Apresente mensagem de commit
-- PulsoDaLive / LiveScribeCaptura e análise de discurso em tempo real de chats de lives do YouTube.## Funcionalidades- Extensão Chrome com autenticação JWT integrada- API FastAPI para armazenar e analisar mensagens- Autenticação local (email/senha) e Google OAuth2- Frequência de palavras com stopwords em português- Análise de sentimentos com LeIA (VADER adaptado)- Linha do tempo de sentimentos por intervalos- Picos de engajamento por janela de tempo- Tópicos emergentes via TF-IDF (scikit-learn)- Exportação de dados (JSON, CSV, XLSX)- Dashboard HTML interativo com Chart.js e login/logout- Isolamento de dados por usuário (JWT)- Suporte a múltiplas plataformas (campo `platform`)## Stack- **Backend:** FastAPI, SQLAlchemy, SQLite- **Autenticação:** JWT (python-jose) + bcrypt + Google OAuth2 (httpx-oauth)- **ML/NLP:** LeIA (sentimento), scikit-learn (TF-IDF)- **Frontend:** Extensão Chrome Manifest v3 + Dashboard HTML (Chart.js)- **Testes:** pytest + pytest-cov (65 testes, 88% cobertura)## Como rodar```bashpython3 -m venv venvsource venv/bin/activatepip install -r requirements.txtuvicorn app.main:app --reload```Acesse: http://127.0.0.1:8000/docs | Dashboard: http://127.0.0.1:8000/dashboard## Extensão Chrome1. Vá em `chrome://extensions/`, ative "Modo do desenvolvedor"2. "Carregar sem compactação" → selecione a pasta `frontend/`3. Clique no ícone da extensão → faça login4. Abra uma live do YouTube com chat ativo5. As mensagens serão enviadas automaticamente com token JWT## Endpoints| Método | Rota | Auth | Descrição ||--------|------|:----:|-----------|| `GET` | `/` | ❌ | Healthcheck || `GET` | `/dashboard` | ❌ | Dashboard HTML || `POST` | `/api/auth/register` | ❌ | Cadastro local || `POST` | `/api/auth/login` | ❌ | Login local || `GET` | `/api/auth/login/google` | ❌ | URL Google OAuth || `GET` | `/api/auth/callback/google` | ❌ | Callback Google || `GET` | `/api/auth/me` | ✅ | Dados do usuário || `POST` | `/api/chat/messages` | Opcional | Salvar mensagem || `GET` | `/api/chat/lives` | ✅ | Listar lives || `GET` | `/api/chat/{id}/word-frequency` | ✅ | Top palavras || `GET` | `/api/chat/{id}/sentiment` | ✅ | Sentimentos || `GET` | `/api/chat/{id}/sentiment-timeline` | ✅ | Timeline || `GET` | `/api/chat/{id}/engagement-peaks` | ✅ | Picos || `GET` | `/api/chat/{id}/topics` | ✅ | Tópicos || `GET` | `/api/chat/{id}/export` | ✅ | Exportar JSON/CSV/XLSX |## Testes```bashpytest -v --cov=app --cov-report=term-missing```**65 testes, 88% cobertura.**## Arquivos de teste| Arquivo | O que testa ||---------|------------|| `tests/test_auth.py` | JWT, login local, registro, /me || `tests/test_routes.py` | Todos os endpoints (protegidos com `auth_client`) || `tests/test_services.py` | ChatService, LeiaAnalyzer real, platform || `tests/test_export.py` | Exportação JSON, CSV, XLSX || `tests/test_schemas.py` | Schemas Pydantic || `tests/test_repositories.py` | CRUD mensagens, list_lives || `tests/test_models.py` | Modelo Message (created_at) || `tests/test_deps.py` | Injeção de dependências || `tests/test_dashboard.py` | Dashboard HTML || `tests/conftest.py` | Fixtures (DB memória, mocks, auth_client) |## Autenticação- **Google OAuth2**: `GET /api/auth/login/google` → `GET /api/auth/callback/google`- **Login local**: `POST /api/auth/register` → `POST /api/auth/login`- **JWT**: `python-jose` HS256, expira em 24h- **Hash**: `bcrypt` para senhas locais- **Provider**: campo `provider` no User (`local` / `google`)- **Extensão Chrome**: popup de login, token em `chrome.storage.local`, enviado no header `Authorization`## Arquitetura de serviços```SentimentAnalyzer (ABC)  ← LeiaSentimentAnalyzer (LeIA)TopicExtractor (ABC)     ← TfidfTopicExtractor (sklearn)ExportService            → export_json / export_csv / export_xlsx                              ↓ injetados em                         ChatService / rotas```## Migração de bancoColunas/tabelas adicionadas automaticamente no `lifespan` (ALTER TABLE):- `platform` (Fase 2)- `user_id` (Fase 3)- `password_hash`, `provider`, `is_active` (Feature 1.5)Para recriar do zero: `rm data/app.db` e reiniciar o servidor.esse é o conteudo do readme.md agora atualize com as ultimas coisas
