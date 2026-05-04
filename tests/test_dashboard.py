@@ -24,4 +24,4 @@ class TestDashboard:
         assert "loadEmojis" in html
         assert "loadTopAuthors" in html
         assert "loadTermTimeline" in html
-        assert "updateExportLinks" in html
+        assert "exportData" in html

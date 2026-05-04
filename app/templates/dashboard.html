@@ -81,10 +81,10 @@
         </div>
         <div class="card">
             <h2>📥 Exportar dados</h2>
-            <a id="export-json" href="#" class="export-link">JSON</a> |
-            <a id="export-csv" href="#" class="export-link">CSV</a> |
-            <a id="export-xlsx" href="#" class="export-link">XLSX</a>
-            <style>.export-link{color:#3b82f6;text-decoration:none;}.export-link:hover{text-decoration:underline;}</style>
+            <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
+            <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
+            <button id="export-xlsx" class="export-link" onclick="exportData('xlsx')">XLSX</button>
+            <style>button.export-link{background:none;border:none;color:#3b82f6;cursor:pointer;font-size:1rem;padding:0;margin-right:4px;}button.export-link:hover{text-decoration:underline;}</style>
         </div>
     </div>
 
@@ -114,7 +114,6 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadEmojis(liveId),
         loadTopAuthors(liveId),
         loadTermTimeline(liveId),
-        updateExportLinks(liveId),
     ]);
 });
 
@@ -243,11 +242,22 @@ async function loadTermTimeline(liveId, term) {
     } catch (e) { }
 }
 
-function updateExportLinks(liveId) {
-    const base = API + '/' + liveId + '/export';
-    document.getElementById('export-json').href = base + '?format=json';
-    document.getElementById('export-csv').href = base + '?format=csv';
-    document.getElementById('export-xlsx').href = base + '?format=xlsx';
+async function exportData(format) {
+    const liveId = document.getElementById('live-select').value;
+    if (!liveId) return;
+    try {
+        const res = await fetch(API + '/' + liveId + '/export?format=' + format, { headers: getHeaders() });
+        if (!res.ok) { alert('Erro ao exportar: ' + res.status); return; }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = liveId + '.' + (format === 'xlsx' ? 'xlsx' : format);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) { alert('Falha ao exportar'); }
 }
 
 document.getElementById('term-search-btn').addEventListener('click', () => {
