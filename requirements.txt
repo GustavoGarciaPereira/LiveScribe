@@ -27,6 +27,12 @@ python-jose[cryptography]
 httpx-oauth
 python-multipart
 bcrypt
+
+# PDF
+weasyprint
+
+# Gráficos
+matplotlib
 #pip install torch==2.2.0+cpu --index-url https://download.pytorch.org/whl/cpu
 #torch
 
