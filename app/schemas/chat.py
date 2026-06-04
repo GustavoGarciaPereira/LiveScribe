@@ -133,3 +133,18 @@ class QuestionItem(BaseModel):
 class QuestionsResponse(BaseModel):
     live_id: str
     questions: list[QuestionItem]
+
+
+class ModalityBucket(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    total_messages: int
+    certeza: int
+    duvida: int
+    enfase: int
+
+
+class ModalityTimelineResponse(BaseModel):
+    live_id: str
+    interval_minutes: int
+    timeline: list[ModalityBucket]

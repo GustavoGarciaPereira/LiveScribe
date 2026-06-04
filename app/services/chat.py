@@ -7,15 +7,17 @@ from app.repositories.messages import create_message, list_messages_by_live, lis
 from app.services.sentiment import SentimentAnalyzer
 from app.services.topics import TopicExtractor
 from app.services.emojis import EmojiExtractor
+from app.services.modality import ModalityAnalyzer
 from sqlalchemy.orm import Session
 
 
 class ChatService:
-    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None):
+    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None, modality_analyzer: ModalityAnalyzer | None = None):
         self.db = db
         self.sentiment_analyzer = sentiment_analyzer
         self.topic_extractor = topic_extractor
         self.emoji_extractor = emoji_extractor
+        self.modality_analyzer = modality_analyzer
 
     def list_lives(self, user_id: int | None = None) -> list[dict]:
         return list_lives(self.db, user_id=user_id)
@@ -224,6 +226,52 @@ class ChatService:
         return {
             "live_id": live_id,
             "questions": questions,
+        }
+
+    def modality_timeline(self, live_id: str, interval_minutes: int = 5, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        if not messages:
+            return None
+
+        first = messages[0].created_at
+        last = messages[-1].created_at
+        delta = timedelta(minutes=interval_minutes)
+
+        buckets = []
+        current = first
+        while current <= last:
+            buckets.append({"start": current, "end": current + delta, "msgs": []})
+            current += delta
+
+        for msg in messages:
+            for bucket in buckets:
+                if bucket["start"] <= msg.created_at < bucket["end"]:
+                    bucket["msgs"].append(msg)
+                    break
+            else:
+                buckets[-1]["msgs"].append(msg)
+
+        timeline = []
+        default_counts = {"certeza": 0, "duvida": 0, "enfase": 0}
+        for bucket in buckets:
+            texts = [m.message for m in bucket["msgs"]]
+            if self.modality_analyzer and texts:
+                modality = self.modality_analyzer.analyze(texts)
+            else:
+                modality = default_counts
+            timeline.append({
+                "start_time": bucket["start"],
+                "end_time": bucket["end"],
+                "total_messages": len(bucket["msgs"]),
+                "certeza": modality["certeza"],
+                "duvida": modality["duvida"],
+                "enfase": modality["enfase"],
+            })
+
+        return {
+            "live_id": live_id,
+            "interval_minutes": interval_minutes,
+            "timeline": timeline,
         }
 
     def emoji_analysis(self, live_id: str, top_n: int = 20, user_id: int | None = None) -> dict | None:

@@ -12,6 +12,7 @@ from app.schemas.chat import (
     EmojiResponse, EmojiItem,
     TopAuthorsResponse, AuthorItem,
     QuestionsResponse, QuestionItem,
+    ModalityTimelineResponse, ModalityBucket,
 )
 from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
 from app.repositories.messages import list_messages_by_live
@@ -213,6 +214,23 @@ def questions(
     return QuestionsResponse(
         live_id=result["live_id"],
         questions=[QuestionItem(**q) for q in result["questions"]],
+    )
+
+
+@router.get("/{live_id}/modality-timeline", response_model=ModalityTimelineResponse)
+def modality_timeline(
+    live_id: str,
+    interval_minutes: int = 5,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    result = service.modality_timeline(live_id, interval_minutes, user_id=user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return ModalityTimelineResponse(
+        live_id=result["live_id"],
+        interval_minutes=result["interval_minutes"],
+        timeline=[ModalityBucket(**bucket) for bucket in result["timeline"]],
     )
 
 
