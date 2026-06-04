@@ -20,6 +20,10 @@ class TestDashboard:
         assert "questions-list" in html
         assert "modality-chart" in html
         assert "emotion-chart" in html
+        assert "live-status" in html
+        assert "questions-search" in html
+        assert "filter-bar" in html
+        assert "term-tags-container" in html
 
     def test_contains_new_js_functions(self, client):
         response = client.get("/dashboard")
@@ -31,3 +35,20 @@ class TestDashboard:
         assert "loadQuestions" in html
         assert "loadModalityTimeline" in html
         assert "loadEmotionTimeline" in html
+
+    def test_contains_ux_improvements(self, client):
+        response = client.get("/dashboard")
+        html = response.text
+        assert "badge-live" in html
+        assert "badge-ended" in html
+        assert "empty-state" in html
+        assert "showEmpty" in html
+        assert "applyFilters" in html
+        assert "addTermTag" in html
+        assert "removeTermTag" in html
+        assert "renderTermTags" in html
+        assert "renderQuestions" in html
+        assert "filter-sentiment" in html
+        assert "filter-time-start" in html
+        assert "filter-time-end" in html
+        assert "filter-apply-btn" in html
