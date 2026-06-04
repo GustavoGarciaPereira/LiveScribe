@@ -136,6 +136,7 @@
             <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
             <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
             <button id="export-xlsx" class="export-link" onclick="exportData('xlsx')">XLSX</button>
+            <button id="export-pdf" class="export-link" onclick="exportData('pdf')">PDF</button>
             <style>button.export-link{background:none;border:none;color:#3b82f6;cursor:pointer;font-size:1rem;padding:0;margin-right:4px;}button.export-link:hover{text-decoration:underline;}</style>
         </div>
     </div>
@@ -587,13 +588,17 @@ async function exportData(format) {
     const liveId = document.getElementById('live-select').value;
     if (!liveId) return;
     try {
-        const res = await fetch(API + '/' + liveId + '/export?format=' + format, { headers: getHeaders() });
+        const endpoint = format === 'pdf'
+            ? API + '/' + liveId + '/report?format=pdf'
+            : API + '/' + liveId + '/export?format=' + format;
+        const ext = format === 'pdf' ? 'pdf' : format === 'xlsx' ? 'xlsx' : format;
+        const res = await fetch(endpoint, { headers: getHeaders() });
         if (!res.ok) { alert('Erro ao exportar: ' + res.status); return; }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = liveId + '.' + (format === 'xlsx' ? 'xlsx' : format);
+        a.download = liveId + '.' + ext;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
