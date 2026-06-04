@@ -60,6 +60,7 @@
         <option value="">-- Carregando lives... --</option>
     </select>
     <span id="live-status" class="badge hidden"></span>
+    <a id="live-link-btn" class="hidden" target="_blank" rel="noopener" style="display:inline-block;padding:0.25rem 0.75rem;background:#dc2626;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;margin-left:0.5rem;vertical-align:middle;">Ir para live</a>
 
     <div id="filter-bar" class="filter-bar hidden">
         <label>Sentimento:</label>
@@ -195,6 +196,7 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
     const liveId = e.target.value;
     const badge = document.getElementById('live-status');
     const filterBar = document.getElementById('filter-bar');
+    const linkBtn = document.getElementById('live-link-btn');
     currentFilters = { sentiment: 'Todos', timeStart: '', timeEnd: '' };
     document.getElementById('filter-sentiment').value = 'Todos';
     document.getElementById('filter-time-start').value = '';
@@ -202,8 +204,11 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
     if (!liveId) {
         badge.classList.add('hidden');
         filterBar.classList.add('hidden');
+        linkBtn.classList.add('hidden');
         return;
     }
+    linkBtn.href = 'https://www.youtube.com/watch?v=' + liveId;
+    linkBtn.classList.remove('hidden');
     const live = livesData.find(l => l.live_id === liveId);
     if (live) {
         const isLive = live.last_message_at && (Date.now() - new Date(live.last_message_at).getTime()) < 10 * 60 * 1000;

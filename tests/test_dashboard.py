@@ -21,6 +21,7 @@ class TestDashboard:
         assert "modality-chart" in html
         assert "emotion-chart" in html
         assert "export-pdf" in html
+        assert "live-link-btn" in html
         assert "live-status" in html
         assert "questions-search" in html
         assert "filter-bar" in html
