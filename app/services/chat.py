@@ -8,16 +8,18 @@ from app.services.sentiment import SentimentAnalyzer
 from app.services.topics import TopicExtractor
 from app.services.emojis import EmojiExtractor
 from app.services.modality import ModalityAnalyzer
+from app.services.emotion import EmotionAnalyzer
 from sqlalchemy.orm import Session
 
 
 class ChatService:
-    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None, modality_analyzer: ModalityAnalyzer | None = None):
+    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None, modality_analyzer: ModalityAnalyzer | None = None, emotion_analyzer: EmotionAnalyzer | None = None):
         self.db = db
         self.sentiment_analyzer = sentiment_analyzer
         self.topic_extractor = topic_extractor
         self.emoji_extractor = emoji_extractor
         self.modality_analyzer = modality_analyzer
+        self.emotion_analyzer = emotion_analyzer
 
     def list_lives(self, user_id: int | None = None) -> list[dict]:
         return list_lives(self.db, user_id=user_id)
@@ -266,6 +268,50 @@ class ChatService:
                 "certeza": modality["certeza"],
                 "duvida": modality["duvida"],
                 "enfase": modality["enfase"],
+            })
+
+        return {
+            "live_id": live_id,
+            "interval_minutes": interval_minutes,
+            "timeline": timeline,
+        }
+
+    def emotion_timeline(self, live_id: str, interval_minutes: int = 1, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        if not messages:
+            return None
+
+        first = messages[0].created_at
+        last = messages[-1].created_at
+        delta = timedelta(minutes=interval_minutes)
+
+        buckets = []
+        current = first
+        while current <= last:
+            buckets.append({"start": current, "end": current + delta, "msgs": []})
+            current += delta
+
+        for msg in messages:
+            for bucket in buckets:
+                if bucket["start"] <= msg.created_at < bucket["end"]:
+                    bucket["msgs"].append(msg)
+                    break
+            else:
+                buckets[-1]["msgs"].append(msg)
+
+        timeline = []
+        default_counts = {"alegria": 0, "raiva": 0, "medo": 0, "surpresa": 0, "tristeza": 0, "nojo": 0}
+        for bucket in buckets:
+            texts = [m.message for m in bucket["msgs"]]
+            if self.emotion_analyzer and texts:
+                emotions = self.emotion_analyzer.analyze(texts)
+            else:
+                emotions = default_counts
+            timeline.append({
+                "start_time": bucket["start"],
+                "end_time": bucket["end"],
+                "total_messages": len(bucket["msgs"]),
+                **emotions,
             })
 
         return {

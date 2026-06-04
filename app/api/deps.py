@@ -8,6 +8,7 @@ from app.services.sentiment import LeiaSentimentAnalyzer
 from app.services.topics import TfidfTopicExtractor
 from app.services.emojis import RegexEmojiExtractor
 from app.services.modality import LexiconModalityAnalyzer
+from app.services.emotion import LexiconEmotionAnalyzer
 
 security = HTTPBearer()
 
@@ -25,7 +26,8 @@ def get_chat_service(db: Session = Depends(get_db)) -> ChatService:
     topic_extractor = TfidfTopicExtractor()
     emoji_extractor = RegexEmojiExtractor()
     modality_analyzer = LexiconModalityAnalyzer()
-    return ChatService(db, analyzer, topic_extractor, emoji_extractor, modality_analyzer)
+    emotion_analyzer = LexiconEmotionAnalyzer()
+    return ChatService(db, analyzer, topic_extractor, emoji_extractor, modality_analyzer, emotion_analyzer)
 
 
 def get_current_user(

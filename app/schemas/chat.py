@@ -148,3 +148,21 @@ class ModalityTimelineResponse(BaseModel):
     live_id: str
     interval_minutes: int
     timeline: list[ModalityBucket]
+
+
+class EmotionBucket(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    total_messages: int
+    alegria: int
+    raiva: int
+    medo: int
+    surpresa: int
+    tristeza: int
+    nojo: int
+
+
+class EmotionTimelineResponse(BaseModel):
+    live_id: str
+    interval_minutes: int
+    timeline: list[EmotionBucket]
