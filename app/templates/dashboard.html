@@ -81,6 +81,18 @@
             <canvas id="term-timeline-chart" style="margin-top:1rem;"></canvas>
         </div>
         <div class="card">
+            <h2>❓ Top Perguntas</h2>
+            <div id="questions-list"></div>
+        </div>
+        <div class="card">
+            <h2>📈 Modalidade (Certeza / Dúvida / Ênfase)</h2>
+            <canvas id="modality-chart"></canvas>
+        </div>
+        <div class="card">
+            <h2>😀 Emoções (6 categorias)</h2>
+            <canvas id="emotion-chart"></canvas>
+        </div>
+        <div class="card">
             <h2>📥 Exportar dados</h2>
             <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
             <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
@@ -92,7 +104,7 @@
 <script>
 const API = '/api/chat';
 
-let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart;
+let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart;
 
 let livesData = [];
 
@@ -130,6 +142,9 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadEmojis(liveId),
         loadTopAuthors(liveId),
         loadTermTimeline(liveId),
+        loadQuestions(liveId),
+        loadModalityTimeline(liveId),
+        loadEmotionTimeline(liveId),
     ]);
 });
 
@@ -251,6 +266,80 @@ async function loadTermTimeline(liveId, term) {
                 datasets: [
                     { label: term + ' (ocorrencias)', data: counts, borderColor: '#3b82f6', fill: false },
                     { label: 'Total msgs', data: totals, borderColor: '#94a3b8', fill: false, borderDash: [4,4] }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    } catch (e) { }
+}
+
+async function loadQuestions(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/questions?min_length=10', { headers: getHeaders() });
+        const data = await res.json();
+        const list = document.getElementById('questions-list');
+        if (!data.questions || data.questions.length === 0) {
+            list.innerHTML = '<p style="color:#94a3b8;">Nenhuma pergunta detectada.</p>';
+            return;
+        }
+        let html = '<table style="width:100%; border-collapse:collapse;">';
+        html += '<tr style="color:#94a3b8;font-size:13px;"><th style="text-align:left;padding:4px;">Pergunta</th><th style="text-align:right;padding:4px;">Mencoes</th></tr>';
+        data.questions.forEach(q => {
+            const examplesStr = q.examples.length > 1 ? ' (ex: ' + q.examples.slice(0,2).map(e => '"' + e + '"').join(', ') + ')' : '';
+            html += '<tr><td style="padding:4px;font-size:14px;">' + q.text + '<br><span style="font-size:11px;color:#64748b;">' + examplesStr + '</span></td><td style="text-align:right;padding:4px;">' + q.count + '</td></tr>';
+        });
+        html += '</table>';
+        list.innerHTML = html;
+    } catch (e) { }
+}
+
+async function loadModalityTimeline(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/modality-timeline?interval_minutes=5', { headers: getHeaders() });
+        const data = await res.json();
+        const labels = data.timeline.map(b => b.start_time.slice(11,16));
+        const certeza = data.timeline.map(b => b.certeza);
+        const duvida = data.timeline.map(b => b.duvida);
+        const enfase = data.timeline.map(b => b.enfase);
+        if (modalityChart) modalityChart.destroy();
+        modalityChart = new Chart(document.getElementById('modality-chart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Certeza', data: certeza, borderColor: '#22c55e', fill: false, tension: 0.3 },
+                    { label: 'Dúvida', data: duvida, borderColor: '#f97316', fill: false, tension: 0.3 },
+                    { label: 'Ênfase', data: enfase, borderColor: '#a855f7', fill: false, tension: 0.3 },
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    } catch (e) { }
+}
+
+async function loadEmotionTimeline(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/emotion-timeline?interval_minutes=1', { headers: getHeaders() });
+        const data = await res.json();
+        const labels = data.timeline.map(b => b.start_time.slice(11,16));
+        const alegria = data.timeline.map(b => b.alegria);
+        const raiva = data.timeline.map(b => b.raiva);
+        const medo = data.timeline.map(b => b.medo);
+        const surpresa = data.timeline.map(b => b.surpresa);
+        const tristeza = data.timeline.map(b => b.tristeza);
+        const nojo = data.timeline.map(b => b.nojo);
+        if (emotionChart) emotionChart.destroy();
+        emotionChart = new Chart(document.getElementById('emotion-chart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Alegria', data: alegria, borderColor: '#22c55e', fill: false, tension: 0.3 },
+                    { label: 'Raiva', data: raiva, borderColor: '#ef4444', fill: false, tension: 0.3 },
+                    { label: 'Medo', data: medo, borderColor: '#6366f1', fill: false, tension: 0.3 },
+                    { label: 'Surpresa', data: surpresa, borderColor: '#fbbf24', fill: false, tension: 0.3 },
+                    { label: 'Tristeza', data: tristeza, borderColor: '#3b82f6', fill: false, tension: 0.3 },
+                    { label: 'Nojo', data: nojo, borderColor: '#84cc16', fill: false, tension: 0.3 },
                 ]
             },
             options: { responsive: true, scales: { y: { beginAtZero: true } } }
