@@ -211,6 +211,21 @@ class ChatService:
             "authors": authors,
         }
 
+    def get_questions(self, live_id: str, user_id: int | None = None, min_length: int = 10) -> dict | None:
+        from app.services.questions import detect_questions
+
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        if not messages:
+            return None
+
+        texts = [m.message for m in messages]
+        questions = detect_questions(texts, min_length=min_length)
+
+        return {
+            "live_id": live_id,
+            "questions": questions,
+        }
+
     def emoji_analysis(self, live_id: str, top_n: int = 20, user_id: int | None = None) -> dict | None:
         messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:

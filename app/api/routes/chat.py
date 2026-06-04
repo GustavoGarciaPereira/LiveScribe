@@ -11,6 +11,7 @@ from app.schemas.chat import (
     TopicTimelineResponse, TopicBucket,
     EmojiResponse, EmojiItem,
     TopAuthorsResponse, AuthorItem,
+    QuestionsResponse, QuestionItem,
 )
 from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
 from app.repositories.messages import list_messages_by_live
@@ -196,6 +197,22 @@ def emoji_analysis(
         live_id=result["live_id"],
         total_emojis=result["total_emojis"],
         emojis=[EmojiItem(**e) for e in result["emojis"]],
+    )
+
+
+@router.get("/{live_id}/questions", response_model=QuestionsResponse)
+def questions(
+    live_id: str,
+    min_length: int = 10,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    result = service.get_questions(live_id, user_id=user.id, min_length=min_length)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return QuestionsResponse(
+        live_id=result["live_id"],
+        questions=[QuestionItem(**q) for q in result["questions"]],
     )
 
 

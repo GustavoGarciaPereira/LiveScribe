@@ -122,3 +122,14 @@ class TopAuthorsResponse(BaseModel):
     live_id: str
     total_authors: int
     authors: list[AuthorItem]
+
+
+class QuestionItem(BaseModel):
+    text: str
+    count: int
+    examples: list[str]
+
+
+class QuestionsResponse(BaseModel):
+    live_id: str
+    questions: list[QuestionItem]
