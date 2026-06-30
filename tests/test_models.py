@@ -1,7 +1,8 @@
 """Testes para o modelo Message."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from app.models.message import Message
+from app.core.timezone import now as now_local
 
 
 def test_message_created_at_is_set(db_session):
@@ -18,7 +19,7 @@ def test_message_created_at_is_recent(db_session):
     msg = Message(live_id="test", author="A", message="Teste")
     db_session.add(msg)
     db_session.commit()
-    # SQLite armazena datetime como naive; converte para UTC-aware para comparar
-    naive_now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # SQLite armazena datetime como naive; compara com now_local() também naive
+    naive_now = now_local().replace(tzinfo=None)
     diff = abs((msg.created_at - naive_now).total_seconds())
     assert diff < 5  # criado nos últimos 5 segundos

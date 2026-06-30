@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 import bcrypt
 from sqlalchemy import Boolean, Column, DateTime, Integer, String
 
+from app.core.timezone import now as now_local
 from app.infrastructure.database import Base
 
 
@@ -19,7 +20,7 @@ class User(Base):
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=now_local,
     )
 
     @classmethod

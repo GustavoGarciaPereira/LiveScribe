@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = Field(default_factory=lambda: ["*"])
     CORS_ALLOW_HEADERS: list[str] = Field(default_factory=lambda: ["*"])
 
+    # Fuso horário
+    TIMEZONE: str = "America/Sao_Paulo"
+
     # Autenticação
     SECRET_KEY: str = "change-me-in-production"
     GOOGLE_CLIENT_ID: str = ""

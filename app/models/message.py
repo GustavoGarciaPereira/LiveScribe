@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 
+from app.core.timezone import now as now_local
 from app.infrastructure.database import Base
 
 
@@ -16,5 +17,5 @@ class Message(Base):
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=now_local,
     )

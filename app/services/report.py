@@ -1,7 +1,9 @@
 import base64
 import io
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.core.timezone import now as now_local
 
 import matplotlib
 matplotlib.use("Agg")
@@ -60,7 +62,7 @@ class ReportService:
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
             "charts": charts,
-            "generated_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
+            "generated_at": now_local().strftime("%d/%m/%Y %H:%M BRT"),
         }
 
         from app.templates.report_html import report_html
