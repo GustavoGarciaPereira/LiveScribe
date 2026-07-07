@@ -8,8 +8,12 @@ chamadas repetidas ao mesmo vídeo.
 import logging
 from functools import lru_cache
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled, VideoUnavailable
+from youtube_transcript_api import (
+    YouTubeTranscriptApi,
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    VideoUnavailable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,9 @@ class TranscriptService:
         Cada trecho: {"text": str, "start": float (segundos), "duration": float}
         """
         try:
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["pt", "en"])
+            api = YouTubeTranscriptApi()
+            result = api.fetch(video_id, languages=("pt", "en"))
+            transcript = result.to_raw_data()
             logger.info(f"Transcript obtida para video={video_id} ({len(transcript)} trechos).")
             return transcript
         except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable) as e:
