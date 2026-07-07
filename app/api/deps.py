@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -21,13 +23,28 @@ def get_db():
         db.close()
 
 
+@lru_cache(maxsize=1)
+def get_analyzers():
+    """Retorna os analisadores NLP cacheados — instanciados uma única vez."""
+    return {
+        "sentiment": LeiaSentimentAnalyzer(),
+        "topic": TfidfTopicExtractor(),
+        "emoji": RegexEmojiExtractor(),
+        "modality": LexiconModalityAnalyzer(),
+        "emotion": LexiconEmotionAnalyzer(),
+    }
+
+
 def get_chat_service(db: Session = Depends(get_db)) -> ChatService:
-    analyzer = LeiaSentimentAnalyzer()
-    topic_extractor = TfidfTopicExtractor()
-    emoji_extractor = RegexEmojiExtractor()
-    modality_analyzer = LexiconModalityAnalyzer()
-    emotion_analyzer = LexiconEmotionAnalyzer()
-    return ChatService(db, analyzer, topic_extractor, emoji_extractor, modality_analyzer, emotion_analyzer)
+    analyzers = get_analyzers()
+    return ChatService(
+        db,
+        analyzers["sentiment"],
+        analyzers["topic"],
+        analyzers["emoji"],
+        analyzers["modality"],
+        analyzers["emotion"],
+    )
 
 
 def get_current_user(
