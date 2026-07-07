@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from app.models.user import User
 from app.schemas.chat import (
     ChatMessage, MessageResponse, WordFrequencyItem, WordFrequencyResponse,
@@ -18,6 +18,7 @@ from app.schemas.chat import (
 from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
 from app.repositories.messages import list_messages_by_live
 from app.services.chat import ChatService
+from app.services.webhook import trigger_webhooks
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.post("/messages", response_model=MessageResponse)
 def save_message(
     payload: ChatMessage,
+    background_tasks: BackgroundTasks,
     user: Optional[User] = Depends(get_current_user_optional_v2),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -33,9 +35,8 @@ def save_message(
         payload.platform or "youtube",
         user_id=user.id if user else None,
     )
-    # Dispara webhooks de nova mensagem
-    from app.services.webhook import trigger_webhooks
-    trigger_webhooks(service.db, "new_message", {
+    # Dispara webhooks de nova mensagem em background
+    background_tasks.add_task(trigger_webhooks, "new_message", {
         "live_id": message.live_id,
         "author": message.author,
         "message": message.message,
@@ -114,6 +115,7 @@ def sentiment_timeline(
 @router.get("/{live_id}/engagement-peaks", response_model=EngagementPeaksResponse)
 def engagement_peaks(
     live_id: str,
+    background_tasks: BackgroundTasks,
     top_n: int = 5,
     window_minutes: int = 1,
     user: User = Depends(get_current_user),
@@ -122,9 +124,8 @@ def engagement_peaks(
     result = service.engagement_peaks(live_id, top_n, window_minutes, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
-    # Dispara webhooks de pico de engajamento
-    from app.services.webhook import trigger_webhooks
-    trigger_webhooks(service.db, "peak_engagement", result)
+    # Dispara webhooks de pico de engajamento em background
+    background_tasks.add_task(trigger_webhooks, "peak_engagement", result)
     return EngagementPeaksResponse(
         live_id=result["live_id"],
         window_minutes=result["window_minutes"],
