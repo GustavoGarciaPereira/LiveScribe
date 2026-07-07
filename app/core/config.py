@@ -1,7 +1,6 @@
 from functools import lru_cache
 
-
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,10 +23,22 @@ class Settings(BaseSettings):
     # Fuso horário
     TIMEZONE: str = "America/Sao_Paulo"
 
+    # Ambiente
+    ENVIRONMENT: str = "development"
+
     # Autenticação
     SECRET_KEY: str = "change-me-in-production"
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+
+    @model_validator(mode="after")
+    def _validate_secret_key_in_production(self):
+        if self.ENVIRONMENT == "production" and self.SECRET_KEY == "change-me-in-production":
+            raise ValueError(
+                "SECRET_KEY must be set to a secure value in production. "
+                "Do not use the default 'change-me-in-production'."
+            )
+        return self
 
 
 @lru_cache(maxsize=1)
