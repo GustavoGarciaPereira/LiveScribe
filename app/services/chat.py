@@ -3,6 +3,7 @@ from datetime import timedelta
 import re
 
 from app.core.stopwords import PORTUGUESE_STOPWORDS
+from app.core.timezone import to_local
 from app.repositories.messages import create_message, list_messages_by_live, list_lives, list_top_authors
 from app.services.sentiment import SentimentAnalyzer
 from app.services.topics import TopicExtractor
@@ -26,13 +27,17 @@ class ChatService:
         """Agrupa mensagens em buckets de intervalo fixo.
 
         Retorna lista de dicts com 'start', 'end' (datetime) e 'msgs' (list).
+        Normaliza timestamps para timezone-aware (SQLite armazena como naive).
         """
         if not messages:
             return []
 
-        first = messages[0].created_at
-        last = messages[-1].created_at
+        first = to_local(messages[0].created_at)
+        last = to_local(messages[-1].created_at)
         delta = timedelta(minutes=interval_minutes)
+
+        # Normaliza todas as timestamps para evitar TypeError entre naive e aware
+        msg_times = [to_local(m.created_at) for m in messages]
 
         buckets = []
         current = first
@@ -40,9 +45,10 @@ class ChatService:
             buckets.append({"start": current, "end": current + delta, "msgs": []})
             current += delta
 
-        for msg in messages:
+        for i, msg in enumerate(messages):
+            msg_time = msg_times[i]
             for bucket in buckets:
-                if bucket["start"] <= msg.created_at < bucket["end"]:
+                if bucket["start"] <= msg_time < bucket["end"]:
                     bucket["msgs"].append(msg)
                     break
             else:
@@ -114,8 +120,11 @@ class ChatService:
             return None
 
         delta = timedelta(minutes=window_minutes)
-        first = messages[0].created_at
-        last = messages[-1].created_at
+        first = to_local(messages[0].created_at)
+        last = to_local(messages[-1].created_at)
+
+        # Normaliza todas as timestamps (SQLite armazena como naive)
+        msg_times = [to_local(m.created_at) for m in messages]
 
         # Sliding window O(n): cada mensagem é visitada no máximo duas vezes
         window_counts: dict[str, int] = {}
@@ -126,12 +135,12 @@ class ChatService:
         while current <= last:
             we = current + delta
             # Avança ponteiro além das mensagens que saíram da janela
-            while msg_idx < n and messages[msg_idx].created_at < current:
+            while msg_idx < n and msg_times[msg_idx] < current:
                 msg_idx += 1
             # Conta mensagens dentro desta janela (ponteiro temporário não retrocede)
             count = 0
             temp = msg_idx
-            while temp < n and messages[temp].created_at < we:
+            while temp < n and msg_times[temp] < we:
                 count += 1
                 temp += 1
             window_counts[current.isoformat()] = count
