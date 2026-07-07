@@ -253,23 +253,6 @@ def modality_timeline(
     )
 
 
-@router.get("/{live_id}/report")
-def report(
-    live_id: str,
-    format: str = "pdf",
-    user: User = Depends(get_current_user),
-    service: ChatService = Depends(get_chat_service),
-):
-    messages = list_messages_by_live(service.db, live_id, user_id=user.id)
-    if not messages:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
-    from app.services.report import ReportService
-    report_service = ReportService(service)
-    pdf_bytes = report_service.generate_pdf(live_id, user_id=user.id)
-    return Response(content=pdf_bytes, media_type="application/pdf",
-                    headers={"Content-Disposition": f"attachment; filename={live_id}_report.pdf"})
-
-
 @router.get("/{live_id}/export")
 def export_data(
     live_id: str,

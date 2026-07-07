@@ -9,8 +9,9 @@ from sqlalchemy.pool import StaticPool
 
 from app.infrastructure.database import Base
 from app.main import app
-from app.api.deps import get_db, get_chat_service
+from app.api.deps import get_db, get_chat_service, get_report_queue, init_report_queue
 from app.services.chat import ChatService
+from app.services.report_queue import ReportQueue
 from app.services.sentiment import LeiaSentimentAnalyzer
 
 
@@ -58,10 +59,22 @@ def mock_topic_extractor():
     return extractor
 
 
+# ── Fila de relatórios para testes ────────────────────────────
+
+@pytest.fixture(scope="function")
+def report_queue():
+    """Cria uma ReportQueue isolada para testes, iniciada e parada ao fim."""
+    # Inicializa o singleton para os testes
+    queue = init_report_queue()
+    queue.start()
+    yield queue
+    queue.stop()
+
+
 # ── Cliente HTTP para testes de rota ──────────────────────────
 
 @pytest.fixture
-def client(db_session, mock_analyzer, mock_topic_extractor):
+def client(db_session, mock_analyzer, mock_topic_extractor, report_queue):
     """Cliente de teste com dependências sobrescritas."""
     def override_get_db():
         try:
@@ -72,8 +85,12 @@ def client(db_session, mock_analyzer, mock_topic_extractor):
     def override_get_chat_service():
         return ChatService(db_session, mock_analyzer, mock_topic_extractor)
 
+    def override_get_report_queue():
+        return report_queue
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_chat_service] = override_get_chat_service
+    app.dependency_overrides[get_report_queue] = override_get_report_queue
 
     with TestClient(app) as c:
         yield c

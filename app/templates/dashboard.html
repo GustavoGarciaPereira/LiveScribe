@@ -137,8 +137,9 @@
             <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
             <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
             <button id="export-xlsx" class="export-link" onclick="exportData('xlsx')">XLSX</button>
-            <button id="export-pdf" class="export-link" onclick="exportData('pdf')">PDF</button>
-            <style>button.export-link{background:none;border:none;color:#3b82f6;cursor:pointer;font-size:1rem;padding:0;margin-right:4px;}button.export-link:hover{text-decoration:underline;}</style>
+            <button id="export-pdf" class="export-link" onclick="requestPdfReport()">PDF</button>
+            <div id="pdf-progress" style="margin-top:0.5rem;font-size:0.85rem;color:#94a3b8;"></div>
+            <style>button.export-link{background:none;border:none;color:#3b82f6;cursor:pointer;font-size:1rem;padding:0;margin-right:4px;}button.export-link:hover{text-decoration:underline;}button.export-link:disabled{color:#64748b;cursor:not-allowed;text-decoration:none;}</style>
         </div>
     </div>
 
@@ -593,10 +594,8 @@ async function exportData(format) {
     const liveId = document.getElementById('live-select').value;
     if (!liveId) return;
     try {
-        const endpoint = format === 'pdf'
-            ? API + '/' + liveId + '/report?format=pdf'
-            : API + '/' + liveId + '/export?format=' + format;
-        const ext = format === 'pdf' ? 'pdf' : format === 'xlsx' ? 'xlsx' : format;
+        const endpoint = API + '/' + liveId + '/export?format=' + format;
+        const ext = format === 'xlsx' ? 'xlsx' : format;
         const res = await fetch(endpoint, { headers: getHeaders() });
         if (!res.ok) { alert('Erro ao exportar: ' + res.status); return; }
         const blob = await res.blob();
@@ -609,6 +608,61 @@ async function exportData(format) {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     } catch (e) { alert('Falha ao exportar'); }
+}
+
+async function requestPdfReport() {
+    const liveId = document.getElementById('live-select').value;
+    if (!liveId) return;
+    const btn = document.getElementById('export-pdf');
+    const progressDiv = document.getElementById('pdf-progress');
+
+    btn.disabled = true;
+    progressDiv.textContent = 'Criando job...';
+
+    try {
+        // 1. Criar job
+        const createRes = await fetch('/api/reports?live_id=' + encodeURIComponent(liveId), {
+            method: 'POST',
+            headers: getHeaders(),
+        });
+        if (!createRes.ok) {
+            const err = await createRes.json();
+            throw new Error(err.detail || 'Erro ao criar relatório');
+        }
+        const { job_id } = await createRes.json();
+
+        // 2. Polling a cada 2s
+        const pollInterval = setInterval(async () => {
+            try {
+                const statusRes = await fetch('/api/reports/' + job_id, {
+                    headers: getHeaders(),
+                });
+                if (!statusRes.ok) {
+                    clearInterval(pollInterval);
+                    throw new Error('Falha ao consultar status');
+                }
+                const job = await statusRes.json();
+                progressDiv.textContent = 'Gerando relatório... ' + job.progress + '%';
+
+                if (job.status === 'done') {
+                    clearInterval(pollInterval);
+                    progressDiv.innerHTML = '<a href="/api/reports/' + job_id + '/download" style="color:#22c55e;">Relatório pronto — clique para baixar</a>';
+                    btn.disabled = false;
+                } else if (job.status === 'failed') {
+                    clearInterval(pollInterval);
+                    progressDiv.innerHTML = '<span style="color:#ef4444;">Erro: ' + (job.error || 'falha desconhecida') + '</span>';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                clearInterval(pollInterval);
+                progressDiv.innerHTML = '<span style="color:#ef4444;">' + e.message + '</span>';
+                btn.disabled = false;
+            }
+        }, 2000);
+    } catch (e) {
+        progressDiv.innerHTML = '<span style="color:#ef4444;">' + e.message + '</span>';
+        btn.disabled = false;
+    }
 }
 
 renderTermTags();

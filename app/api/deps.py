@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.infrastructure.database import SessionLocal
 from app.services.chat import ChatService
+from app.services.report_queue import ReportQueue
 from app.services.sentiment import LeiaSentimentAnalyzer
 from app.services.topics import TfidfTopicExtractor
 from app.services.emojis import RegexEmojiExtractor
@@ -13,6 +14,25 @@ from app.services.modality import LexiconModalityAnalyzer
 from app.services.emotion import LexiconEmotionAnalyzer
 
 security = HTTPBearer()
+
+# ── Fila de relatórios (singleton) ────────────────────────────
+
+_report_queue: ReportQueue | None = None
+
+
+def get_report_queue() -> ReportQueue:
+    """Retorna a fila de relatórios compartilhada."""
+    if _report_queue is None:
+        raise RuntimeError("ReportQueue não foi inicializada.")
+    return _report_queue
+
+
+def init_report_queue() -> ReportQueue:
+    """Inicializa e retorna a fila de relatórios (chamado no lifespan)."""
+    global _report_queue
+    if _report_queue is None:
+        _report_queue = ReportQueue()
+    return _report_queue
 
 
 def get_db():

@@ -8,7 +8,9 @@ from sqlalchemy import inspect, text
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.reports import router as reports_router
 from app.api.routes.webhooks import router as webhooks_router
+from app.api.deps import init_report_queue
 from app.core.config import settings
 from app.infrastructure.database import Base, engine
 
@@ -71,7 +73,10 @@ def create_application() -> FastAPI:
     async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         _migrate_legacy_db()
+        report_queue = init_report_queue()
+        report_queue.start()
         yield
+        report_queue.stop()
 
     app = FastAPI(
         title=settings.PROJECT_NAME,
@@ -92,6 +97,7 @@ def create_application() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(chat_router, prefix=settings.API_PREFIX)
+    app.include_router(reports_router, prefix=settings.API_PREFIX)
     app.include_router(webhooks_router, prefix=settings.API_PREFIX)
 
     @app.get("/dashboard", response_class=HTMLResponse)
