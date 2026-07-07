@@ -105,6 +105,11 @@ def create_application() -> FastAPI:
         dashboard_html = (Path(__file__).parent / "templates" / "dashboard.html").read_text(encoding="utf-8")
         return dashboard_html
 
+    @app.get("/landing", response_class=HTMLResponse)
+    async def landing():
+        landing_html = (Path(__file__).parent / "templates" / "landing.html").read_text(encoding="utf-8")
+        return landing_html
+
     @app.get("/", tags=["healthcheck"])
     async def healthcheck():
         return {"status": "online"}

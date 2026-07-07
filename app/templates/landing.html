@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PulsoDaLive — Inteligência de Chat para Criadores</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* ─── Container ─── */
+.container{width:100%;max-width:1100px;margin:0 auto;padding:0 24px}
+
+/* ─── Navbar ─── */
+.navbar{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(15,23,42,.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.06);padding:14px 0}
+.navbar .container{display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:1.25rem;font-weight:800;color:#fff;letter-spacing:-.5px}
+.logo span{color:#3b82f6}
+.nav-cta{background:#3b82f6;color:#fff;text-decoration:none;font-size:.825rem;font-weight:600;padding:8px 20px;border-radius:8px;transition:background .2s}
+.nav-cta:hover{background:#2563eb}
+
+/* ─── Hero ─── */
+.hero{min-height:100vh;display:flex;align-items:center;padding-top:80px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;right:-20%;width:600px;height:600px;background:radial-gradient(circle,rgba(59,130,246,.15) 0%,transparent 70%);pointer-events:none}
+.hero .container{position:relative;z-index:1;text-align:center;max-width:800px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.2;margin-bottom:20px;color:#fff}
+.hero h1 span{color:#3b82f6}
+.hero p{font-size:clamp(1rem,2.5vw,1.2rem);color:#94a3b8;margin-bottom:36px;max-width:680px;margin-left:auto;margin-right:auto}
+.hero-badge{display:inline-block;background:rgba(59,130,246,.15);color:#93c5fd;font-size:.8rem;font-weight:600;padding:6px 16px;border-radius:50px;margin-bottom:24px;border:1px solid rgba(59,130,246,.25)}
+.btn-primary{display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;font-weight:700;font-size:1.05rem;padding:16px 36px;border-radius:12px;transition:all .2s;box-shadow:0 4px 20px rgba(59,130,246,.35)}
+.btn-primary:hover{background:#2563eb;transform:translateY(-2px);box-shadow:0 6px 28px rgba(59,130,246,.45)}
+.btn-secondary{display:inline-block;background:transparent;color:#e2e8f0;text-decoration:none;font-weight:600;font-size:1rem;padding:14px 32px;border-radius:12px;border:1px solid #334155;transition:all .2s}
+.btn-secondary:hover{background:#1e293b;border-color:#475569}
+.hero-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+
+/* ─── Sections ─── */
+section{padding:80px 0}
+.section-label{display:inline-block;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#3b82f6;margin-bottom:12px}
+.section-title{font-size:clamp(1.5rem,3vw,2.2rem);font-weight:800;text-align:center;color:#fff;margin-bottom:16px}
+.section-sub{text-align:center;color:#94a3b8;max-width:640px;margin:0 auto 48px;font-size:1.05rem}
+
+/* ─── Problem / Solution ─── */
+.problem-solution{background:#0a0f1a}
+.ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.ps-card{background:#1e293b;border-radius:16px;padding:40px;border:1px solid #334155}
+.ps-card.dor{border-left:4px solid #ef4444}
+.ps-card.solucao{border-left:4px solid #22c55e}
+.ps-card h3{font-size:1.2rem;font-weight:700;margin-bottom:12px;color:#fff}
+.ps-card p{color:#94a3b8;font-size:.95rem}
+.ps-icon{font-size:2rem;margin-bottom:8px}
+@media(max-width:768px){.ps-grid{grid-template-columns:1fr}}
+
+/* ─── Features ─── */
+.features{background:#0f172a}
+.f-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px}
+.f-card{background:#1e293b;border-radius:16px;padding:32px;border:1px solid #334155;transition:transform .2s,border-color .2s}
+.f-card:hover{transform:translateY(-4px);border-color:#3b82f6}
+.f-icon{font-size:2.2rem;margin-bottom:12px}
+.f-card h3{font-size:1.1rem;font-weight:700;margin-bottom:10px;color:#fff}
+.f-card p{color:#94a3b8;font-size:.9rem;line-height:1.5}
+
+/* ─── Sample Report ─── */
+.sample{background:#0a0f1a;text-align:center}
+.sample-box{background:#1e293b;border-radius:16px;border:2px dashed #334155;padding:48px 32px;max-width:640px;margin:0 auto;transition:border-color .2s}
+.sample-box:hover{border-color:#3b82f6}
+.sample-icon{font-size:3rem;margin-bottom:16px}
+.sample-box h3{font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:8px}
+.sample-box p{color:#94a3b8;font-size:.9rem;margin-bottom:20px}
+.sample-box .btn-primary{font-size:.9rem;padding:12px 28px}
+
+/* ─── Audience ─── */
+.audience{background:#0f172a}
+.a-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+.a-card{background:#1e293b;border-radius:12px;padding:28px;border:1px solid #334155;text-align:center}
+.a-icon{font-size:2rem;margin-bottom:12px}
+.a-card h3{font-size:1rem;font-weight:700;color:#fff;margin-bottom:8px}
+.a-card p{color:#94a3b8;font-size:.85rem}
+
+/* ─── Pricing ─── */
+.pricing{background:#0a0f1a}
+.p-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:700px;margin:0 auto}
+.p-card{background:#1e293b;border-radius:16px;padding:36px 28px;border:1px solid #334155;position:relative;text-align:center;transition:border-color .2s}
+.p-card:hover{border-color:#3b82f6}
+.p-card.destaque{background:linear-gradient(135deg,#1e293b,#1a2040);border-color:#3b82f6;transform:scale(1.03);box-shadow:0 8px 32px rgba(59,130,246,.15)}
+.p-card.destaque::before{content:'MAIS POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#3b82f6;color:#fff;font-size:.65rem;font-weight:800;padding:3px 14px;border-radius:50px;letter-spacing:1px}
+.p-price{font-size:2.5rem;font-weight:800;color:#fff;margin:12px 0 4px}
+.p-price span{font-size:1rem;font-weight:400;color:#64748b}
+.p-desc{color:#94a3b8;font-size:.85rem;margin-bottom:20px}
+.p-card ul{list-style:none;text-align:left;margin-bottom:24px;padding:0}
+.p-card li{color:#cbd5e1;font-size:.85rem;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.p-card li:last-child{border-bottom:none}
+.p-card li::before{content:'✓ ';color:#22c55e;font-weight:700}
+.p-card .btn-primary{width:100%;font-size:.9rem;padding:12px;text-align:center}
+.p-card .btn-secondary{width:100%;font-size:.9rem;padding:12px;text-align:center}
+@media(max-width:640px){.p-grid{grid-template-columns:1fr}.p-card.destaque{transform:none}}
+
+/* ─── CTA Final ─── */
+.cta-final{background:linear-gradient(135deg,#0f172a 0%,#172554 100%);text-align:center}
+.cta-final h2{font-size:clamp(1.4rem,3vw,2rem);font-weight:800;color:#fff;margin-bottom:12px}
+.cta-final p{color:#94a3b8;margin-bottom:28px;max-width:520px;margin-left:auto;margin-right:auto}
+.cta-final .btn-primary{font-size:1.1rem;padding:18px 44px}
+
+/* ─── Footer ─── */
+footer{background:#0a0f1a;border-top:1px solid #1e293b;padding:32px 0}
+footer .container{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+footer p{color:#64748b;font-size:.85rem}
+footer a{color:#3b82f6;text-decoration:none}
+footer a:hover{text-decoration:underline}
+
+/* ─── Misc ─── */
+.gap-12{gap:12px}
+.mt-20{margin-top:20px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ Navbar ═══════════ -->
+<nav class="navbar">
+  <div class="container">
+    <div class="logo">Pulso<span>Da</span>Live</div>
+    <a class="nav-cta" href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Quero%20um%20relat%C3%B3rio%20de%20demonstra%C3%A7%C3%A3o%20do%20PulsoDaLive" target="_blank">Pedir Demonstração</a>
+  </div>
+</nav>
+
+<!-- ═══════════ Hero ═══════════ -->
+<section class="hero" id="topo">
+  <div class="container">
+    <div class="hero-badge">🔬 Análise de Discurso com IA</div>
+    <h1>Transforme Chats de Live em <span>Inteligência Acionável</span></h1>
+    <p>Relatórios profissionais que mostram o que sua audiência realmente pensa — tópico por tópico, emoção por emoção, minuto a minuto.</p>
+    <div class="hero-buttons">
+      <a class="btn-primary" href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Quero%20um%20relat%C3%B3rio%20de%20demonstra%C3%A7%C3%A3o%20do%20PulsoDaLive" target="_blank">📊 Quero um Relatório de Demonstração</a>
+      <a class="btn-secondary" href="#funcionalidades">Ver Funcionalidades ↓</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Problema / Solução ═══════════ -->
+<section class="problem-solution" id="problema">
+  <div class="container">
+    <div class="section-label">Problema &amp; Solução</div>
+    <h2 class="section-title">Você não precisa adivinhar o que a audiência sentiu</h2>
+    <p class="section-sub">Chats de live têm centenas a milhares de mensagens — impossível ler tudo e extrair padrões manualmente.</p>
+    <div class="ps-grid">
+      <div class="ps-card dor">
+        <div class="ps-icon">😖</div>
+        <h3>O Problema</h3>
+        <p>"Você assiste horas de live e não sabe o que a audiência realmente sentiu sobre cada assunto. As perguntas importantes se perdem no meio do chat, os picos de emoção passam despercebidos, e você não tem dados concretos para mostrar a patrocinadores."</p>
+      </div>
+      <div class="ps-card solucao">
+        <div class="ps-icon">✅</div>
+        <h3>A Solução</h3>
+        <p>Nosso sistema analisa automaticamente milhares de comentários e entrega um PDF profissional com gráficos de sentimento, emoções, tópicos mais comentados, perguntas da audiência e transcrição dos momentos críticos — tudo em minutos.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Funcionalidades ═══════════ -->
+<section class="features" id="funcionalidades">
+  <div class="container">
+    <div class="section-label">Funcionalidades</div>
+    <h2 class="section-title">O que o PulsoDaLive extrai do seu chat</h2>
+    <p class="section-sub">Análise profunda de discurso em tempo real — sem esforço manual.</p>
+    <div class="f-grid">
+      <div class="f-card">
+        <div class="f-icon">🎯</div>
+        <h3>Sentimento por Tópico</h3>
+        <p>Saiba se a audiência ficou irritada com o assunto X ou empolgada com o assunto Y. Cada tópico extraído é cruzado com sentimento, emoção dominante e o momento exato de pico.</p>
+      </div>
+      <div class="f-card">
+        <div class="f-icon">📈</div>
+        <h3>Linha do Tempo de Emoções</h3>
+        <p>Veja a curva de <strong>alegria, raiva, medo, surpresa, tristeza e nojo</strong> ao longo da live. Identifique os momentos que geraram reações fortes na audiência.</p>
+      </div>
+      <div class="f-card">
+        <div class="f-icon">📄</div>
+        <h3>Relatório PDF Profissional</h3>
+        <p>Gráficos prontos para apresentar a patrocinadores, com resumo executivo, análise detalhada e apêndice completo. Geração em background com link para download.</p>
+      </div>
+      <div class="f-card">
+        <div class="f-icon">❓</div>
+        <h3>Perguntas da Audiência</h3>
+        <p>Detecção automática de perguntas no chat com agrupamento inteligente por similaridade. Veja o que realmente preocupa ou interessa seus espectadores.</p>
+      </div>
+      <div class="f-card">
+        <div class="f-icon">🎭</div>
+        <h3>Modalidade Discursiva</h3>
+        <p>Meça o nível de <strong>certeza, dúvida e ênfase</strong> nos comentários. Entenda o tom geral da conversa em cada momento da transmissão.</p>
+      </div>
+      <div class="f-card">
+        <div class="f-icon">🗣️</div>
+        <h3>Transcrição + Chat</h3>
+        <p>Cruzamento do que o streamer falou (transcrição do YouTube) com a reação do chat no mesmo instante. Contexto completo para cada pico de engajamento.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Exemplo de Relatório ═══════════ -->
+<section class="sample" id="exemplo">
+  <div class="container">
+    <div class="section-label">Amostra</div>
+    <h2 class="section-title">Veja o relatório completo de uma live real</h2>
+    <p class="section-sub">PDF gerado automaticamente com todas as análises — sentimento, emoções, tópicos, perguntas e gráficos.</p>
+    <div class="sample-box">
+      <div class="sample-icon">📄</div>
+      <h3>Relatório de Demonstração</h3>
+      <p>Análise completa de uma live: +1.200 mensagens, 7 tópicos identificados, emoções por minuto e picos de engajamento mapeados.</p>
+      <a class="btn-primary" href="#" onclick="alert('Baixe o relatório de exemplo executando o servidor e acessando /api/reports com uma live_id real.')">📥 Baixar Relatório de Exemplo</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Para quem é ═══════════ -->
+<section class="audience" id="para-quem">
+  <div class="container">
+    <div class="section-label">Público</div>
+    <h2 class="section-title">Para quem é o PulsoDaLive</h2>
+    <p class="section-sub">Ferramenta ideal para quem precisa entender o impacto real da sua live.</p>
+    <div class="a-grid">
+      <div class="a-card">
+        <div class="a-icon">🎬</div>
+        <h3>Criadores de Conteúdo</h3>
+        <p>Que vendem patrocínio e precisam de dados concretos para comprovar engajamento, sentimento da audiência e momentos de pico.</p>
+      </div>
+      <div class="a-card">
+        <div class="a-icon">🏢</div>
+        <h3>Agências de Marketing</h3>
+        <p>Que monitoram marcas em lives e precisam de relatórios profissionais com análise de discurso e sentimento do público.</p>
+      </div>
+      <div class="a-card">
+        <div class="a-icon">🔬</div>
+        <h3>Pesquisadores</h3>
+        <p>Da área de análise de discurso, linguística computacional e comportamento digital que precisam de dados estruturados de interações ao vivo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Preço ═══════════ -->
+<section class="pricing" id="precos">
+  <div class="container">
+    <div class="section-label">Preços</div>
+    <h2 class="section-title">Invista no que realmente importa: entender sua audiência</h2>
+    <p class="section-sub">Escolha o plano ideal para o seu volume de lives.</p>
+    <div class="p-grid">
+      <div class="p-card">
+        <h3>Relatório Avulso</h3>
+        <div class="p-price">R$ 97 <span>/ live</span></div>
+        <p class="p-desc">Análise completa de uma live</p>
+        <ul>
+          <li>Relatório PDF completo com gráficos</li>
+          <li>Sentimento geral e por tópico</li>
+          <li>Linha do tempo de emoções</li>
+          <li>Perguntas da audiência</li>
+          <li>Top palavras e emojis</li>
+          <li>Exportação JSON/CSV</li>
+        </ul>
+        <a class="btn-secondary" href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Quero%20o%20plano%20Avulso%20do%20PulsoDaLive%20%28R%24%2097%29" target="_blank">Contratar Avulso</a>
+      </div>
+      <div class="p-card destaque">
+        <h3>Mensal</h3>
+        <div class="p-price">R$ 297 <span>/ mês</span></div>
+        <p class="p-desc">Até 5 lives por mês + dashboard</p>
+        <ul>
+          <li>Tudo do plano Avulso</li>
+          <li>Até 5 relatórios por mês</li>
+          <li>Dashboard ao vivo com Chart.js</li>
+          <li>Histórico completo de análises</li>
+          <li>Webhooks para integração</li>
+          <li>Suporte prioritário</li>
+        </ul>
+        <a class="btn-primary" href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Quero%20o%20plano%20Mensal%20do%20PulsoDaLive%20%28R%24%20297/m%C3%AAs%29" target="_blank">Assinar Mensal</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CTA Final ═══════════ -->
+<section class="cta-final" id="cta">
+  <div class="container">
+    <h2>🚀 O primeiro relatório é gratuito</h2>
+    <p>Envie o link da sua live e veja o que é possível extrair. Sem compromisso, sem cadastro, sem burocracia.</p>
+    <a class="btn-primary" href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Quero%20meu%20RELAT%C3%93RIO%20GR%C3%81TIS%20do%20PulsoDaLive%20-%20link%20da%20minha%20live%3A%20" target="_blank">🎁 Pedir Relatório Grátis</a>
+  </div>
+</section>
+
+<!-- ═══════════ Footer ═══════════ -->
+<footer>
+  <div class="container">
+    <p>Feito com ❤️ e Python</p>
+    <p>
+      <a href="mailto:contato@pulsodalive.com">contato@pulsodalive.com</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com" target="_blank">GitHub</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
