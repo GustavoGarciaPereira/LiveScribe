@@ -21,6 +21,35 @@ class ChatService:
         self.modality_analyzer = modality_analyzer
         self.emotion_analyzer = emotion_analyzer
 
+    @staticmethod
+    def _bucket_messages(messages: list, interval_minutes: int) -> list[dict]:
+        """Agrupa mensagens em buckets de intervalo fixo.
+
+        Retorna lista de dicts com 'start', 'end' (datetime) e 'msgs' (list).
+        """
+        if not messages:
+            return []
+
+        first = messages[0].created_at
+        last = messages[-1].created_at
+        delta = timedelta(minutes=interval_minutes)
+
+        buckets = []
+        current = first
+        while current <= last:
+            buckets.append({"start": current, "end": current + delta, "msgs": []})
+            current += delta
+
+        for msg in messages:
+            for bucket in buckets:
+                if bucket["start"] <= msg.created_at < bucket["end"]:
+                    bucket["msgs"].append(msg)
+                    break
+            else:
+                buckets[-1]["msgs"].append(msg)
+
+        return buckets
+
     def list_lives(self, user_id: int | None = None) -> list[dict]:
         return list_lives(self.db, user_id=user_id)
 
@@ -60,23 +89,7 @@ class ChatService:
         if not messages:
             return None
 
-        first = messages[0].created_at
-        last = messages[-1].created_at
-        delta = timedelta(minutes=interval_minutes)
-
-        buckets = []
-        current = first
-        while current <= last:
-            buckets.append({"start": current, "end": current + delta, "msgs": []})
-            current += delta
-
-        for msg in messages:
-            for bucket in buckets:
-                if bucket["start"] <= msg.created_at < bucket["end"]:
-                    bucket["msgs"].append(msg)
-                    break
-            else:
-                buckets[-1]["msgs"].append(msg)
+        buckets = self._bucket_messages(messages, interval_minutes)
 
         timeline = []
         for bucket in buckets:
@@ -104,14 +117,24 @@ class ChatService:
         first = messages[0].created_at
         last = messages[-1].created_at
 
+        # Sliding window O(n): cada mensagem é visitada no máximo duas vezes
         window_counts: dict[str, int] = {}
+        msg_idx = 0
+        n = len(messages)
         current = first
+
         while current <= last:
-            key = current.isoformat()
-            window_counts[key] = 0
-            for msg in messages:
-                if current <= msg.created_at < current + delta:
-                    window_counts[key] += 1
+            we = current + delta
+            # Avança ponteiro além das mensagens que saíram da janela
+            while msg_idx < n and messages[msg_idx].created_at < current:
+                msg_idx += 1
+            # Conta mensagens dentro desta janela (ponteiro temporário não retrocede)
+            count = 0
+            temp = msg_idx
+            while temp < n and messages[temp].created_at < we:
+                count += 1
+                temp += 1
+            window_counts[current.isoformat()] = count
             current += delta
 
         sorted_peaks = sorted(window_counts.items(), key=lambda x: x[1], reverse=True)[:top_n]
@@ -132,23 +155,7 @@ class ChatService:
         if not messages:
             return None
 
-        first = messages[0].created_at
-        last = messages[-1].created_at
-        delta = timedelta(minutes=interval_minutes)
-
-        buckets = []
-        current = first
-        while current <= last:
-            buckets.append({"start": current, "end": current + delta, "msgs": []})
-            current += delta
-
-        for msg in messages:
-            for bucket in buckets:
-                if bucket["start"] <= msg.created_at < bucket["end"]:
-                    bucket["msgs"].append(msg)
-                    break
-            else:
-                buckets[-1]["msgs"].append(msg)
+        buckets = self._bucket_messages(messages, interval_minutes)
 
         term_lower = term.lower()
         timeline = []
@@ -235,23 +242,7 @@ class ChatService:
         if not messages:
             return None
 
-        first = messages[0].created_at
-        last = messages[-1].created_at
-        delta = timedelta(minutes=interval_minutes)
-
-        buckets = []
-        current = first
-        while current <= last:
-            buckets.append({"start": current, "end": current + delta, "msgs": []})
-            current += delta
-
-        for msg in messages:
-            for bucket in buckets:
-                if bucket["start"] <= msg.created_at < bucket["end"]:
-                    bucket["msgs"].append(msg)
-                    break
-            else:
-                buckets[-1]["msgs"].append(msg)
+        buckets = self._bucket_messages(messages, interval_minutes)
 
         timeline = []
         default_counts = {"certeza": 0, "duvida": 0, "enfase": 0}
@@ -281,23 +272,7 @@ class ChatService:
         if not messages:
             return None
 
-        first = messages[0].created_at
-        last = messages[-1].created_at
-        delta = timedelta(minutes=interval_minutes)
-
-        buckets = []
-        current = first
-        while current <= last:
-            buckets.append({"start": current, "end": current + delta, "msgs": []})
-            current += delta
-
-        for msg in messages:
-            for bucket in buckets:
-                if bucket["start"] <= msg.created_at < bucket["end"]:
-                    bucket["msgs"].append(msg)
-                    break
-            else:
-                buckets[-1]["msgs"].append(msg)
+        buckets = self._bucket_messages(messages, interval_minutes)
 
         timeline = []
         default_counts = {"alegria": 0, "raiva": 0, "medo": 0, "surpresa": 0, "tristeza": 0, "nojo": 0}
