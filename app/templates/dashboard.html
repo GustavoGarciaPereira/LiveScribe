@@ -133,6 +133,11 @@
             <canvas id="emotion-chart"></canvas>
         </div>
         <div class="card">
+            <h2>🎯 Sentimento por topico</h2>
+            <div id="topic-sentiment-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+            <canvas id="topic-sentiment-chart"></canvas>
+        </div>
+        <div class="card">
             <h2>Exportar dados</h2>
             <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
             <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
@@ -146,7 +151,7 @@
 <script>
 const API = '/api/chat';
 
-let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart;
+let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart;
 
 let livesData = [];
 let cachedData = {};
@@ -231,6 +236,7 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadQuestions(liveId),
         loadModalityTimeline(liveId),
         loadEmotionTimeline(liveId),
+        loadTopicSentiment(liveId),
     ]);
 });
 
@@ -573,6 +579,55 @@ function renderEmotion() {
             ]
         },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+}
+
+async function loadTopicSentiment(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/topic-sentiment?top_n=10', { headers: getHeaders() });
+        const data = await res.json();
+        cachedData.topicSentiment = data;
+        renderTopicSentiment();
+    } catch (e) { showEmpty('topic-sentiment', true); }
+}
+
+function renderTopicSentiment() {
+    const data = cachedData.topicSentiment;
+    if (!data || !data.topics || data.topics.length === 0) {
+        showEmpty('topic-sentiment', true);
+        return;
+    }
+    showEmpty('topic-sentiment', false);
+    const labels = data.topics.map(t => t.topic + ' (' + t.message_count + ')');
+    const pos = data.topics.map(t => t.sentiment.Positivo || 0);
+    const neg = data.topics.map(t => t.sentiment.Negativo || 0);
+    const neu = data.topics.map(t => t.sentiment.Neutro || 0);
+    if (topicSentimentChart) topicSentimentChart.destroy();
+    topicSentimentChart = new Chart(document.getElementById('topic-sentiment-chart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Positivo', data: pos, backgroundColor: '#22c55e' },
+                { label: 'Negativo', data: neg, backgroundColor: '#ef4444' },
+                { label: 'Neutro', data: neu, backgroundColor: '#94a3b8' },
+            ]
+        },
+        options: {
+            responsive: true,
+            indexAxis: 'y',
+            scales: { x: { stacked: true }, y: { stacked: true } },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(ctx) {
+                            const t = data.topics[ctx.dataIndex];
+                            return 'Pico: ' + (t.peak_minute || 'N/D') + ' | Emoção: ' + t.dominant_emotion;
+                        }
+                    }
+                }
+            }
+        }
     });
 }
 

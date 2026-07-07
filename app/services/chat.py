@@ -320,3 +320,59 @@ class ChatService:
             "emojis": emojis,
         }
 
+    def topic_sentiment(self, live_id: str, top_n: int = 10, user_id: int | None = None) -> dict | None:
+        """Cruza tópicos com sentimento/emoção — 'o sentimento X é sobre qual assunto?'"""
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        if not messages:
+            return None
+
+        if self.topic_extractor is None:
+            return {"live_id": live_id, "topics": []}
+
+        texts = [m.message for m in messages]
+        topics = self.topic_extractor.extract(texts, top_n)
+
+        result_topics = []
+        for topic in topics:
+            term = topic["term"]
+            # Filtra mensagens com palavra inteira (case-insensitive)
+            pattern = re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE)
+            matching = [m for m in messages if pattern.search(m.message)]
+
+            if not matching:
+                continue
+
+            matching_texts = [m.message for m in matching]
+
+            # Sentimento
+            sentiments = self.sentiment_analyzer.analyze(matching_texts)
+
+            # Emoção dominante
+            dominant_emotion = "neutro"
+            if self.emotion_analyzer:
+                emotions = self.emotion_analyzer.analyze(matching_texts)
+                if emotions:
+                    dominant_emotion = max(emotions, key=emotions.get)
+
+            # Minuto de pico
+            peak_minute = None
+            minute_counts: dict[str, int] = {}
+            for m in matching:
+                mk = to_local(m.created_at).strftime("%H:%M")
+                minute_counts[mk] = minute_counts.get(mk, 0) + 1
+            if minute_counts:
+                peak_minute = max(minute_counts, key=minute_counts.get)
+
+            result_topics.append({
+                "topic": term,
+                "message_count": len(matching),
+                "sentiment": sentiments,
+                "dominant_emotion": dominant_emotion,
+                "peak_minute": peak_minute,
+            })
+
+        # Ordena por message_count decrescente
+        result_topics.sort(key=lambda t: t["message_count"], reverse=True)
+
+        return {"live_id": live_id, "topics": result_topics}
+

@@ -166,3 +166,16 @@ class EmotionTimelineResponse(BaseModel):
     live_id: str
     interval_minutes: int
     timeline: list[EmotionBucket]
+
+
+class TopicSentimentItem(BaseModel):
+    topic: str
+    message_count: int
+    sentiment: dict[str, int]
+    dominant_emotion: str
+    peak_minute: str | None = None
+
+
+class TopicSentimentResponse(BaseModel):
+    live_id: str
+    topics: list[TopicSentimentItem]

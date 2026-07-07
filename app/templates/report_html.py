@@ -75,6 +75,26 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 <p class="empty-msg">Nenhum topico extraido.</p>
 {% endif %}
 
+<h3>Sentimento por Topico</h3>
+{% if topic_sentiment %}
+<table>
+  <tr><th>Topico</th><th>Msgs</th><th>Positivo</th><th>Negativo</th><th>Neutro</th><th>Emocao Dominante</th><th>Pico</th></tr>
+  {% for t in topic_sentiment %}
+  <tr>
+    <td><strong>{{ t.topic }}</strong></td>
+    <td>{{ t.message_count }}</td>
+    <td class="positive">{{ t.sentiment.Positivo }}</td>
+    <td class="negative">{{ t.sentiment.Negativo }}</td>
+    <td class="neutral">{{ t.sentiment.Neutro }}</td>
+    <td>{{ t.dominant_emotion }}</td>
+    <td>{{ t.peak_minute or 'N/D' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="empty-msg">Nenhum dado de sentimento por topico disponivel.</p>
+{% endif %}
+
 <h3>Top Emojis</h3>
 {% if emojis %}
 <table>

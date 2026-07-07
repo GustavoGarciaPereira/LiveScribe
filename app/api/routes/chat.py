@@ -9,6 +9,7 @@ from app.schemas.chat import (
     EngagementPeaksResponse, EngagementPeak,
     TopicsResponse, TopicItem,
     TopicTimelineResponse, TopicBucket,
+    TopicSentimentResponse, TopicSentimentItem,
     EmojiResponse, EmojiItem,
     TopAuthorsResponse, AuthorItem,
     QuestionsResponse, QuestionItem,
@@ -286,3 +287,20 @@ def export_data(
                         headers={"Content-Disposition": f"attachment; filename={live_id}.xlsx"})
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato inválido. Use json, csv ou xlsx.")
+
+
+@router.get("/{live_id}/topic-sentiment", response_model=TopicSentimentResponse)
+def topic_sentiment(
+    live_id: str,
+    top_n: int = 10,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    """Cruza tópicos extraídos com sentimento e emoção das mensagens."""
+    result = service.topic_sentiment(live_id, top_n, user_id=user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return TopicSentimentResponse(
+        live_id=result["live_id"],
+        topics=[TopicSentimentItem(**t) for t in result["topics"]],
+    )

@@ -26,6 +26,7 @@ class ReportService:
         word_freq = self.chat_service.word_frequency(live_id, top_n=15, user_id=user_id) or []
         peaks_result = self.chat_service.engagement_peaks(live_id, top_n=10, user_id=user_id)
         topics = self.chat_service.extract_topics(live_id, top_n=10, user_id=user_id)
+        topic_sentiment = self.chat_service.topic_sentiment(live_id, top_n=10, user_id=user_id)
         authors = self.chat_service.top_authors(live_id, top_n=10, user_id=user_id)
         questions = self.chat_service.get_questions(live_id, user_id=user_id, min_length=10)
         modality = self.chat_service.modality_timeline(live_id, interval_minutes=5, user_id=user_id)
@@ -58,6 +59,7 @@ class ReportService:
             "sentiment_summary": sentiment_summary,
             "word_freq": word_freq,
             "topics": topics.get("topics", []) if topics else [],
+            "topic_sentiment": topic_sentiment.get("topics", []) if topic_sentiment else [],
             "authors": authors.get("authors", []) if authors else [],
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
