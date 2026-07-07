@@ -646,7 +646,24 @@ async function requestPdfReport() {
 
                 if (job.status === 'done') {
                     clearInterval(pollInterval);
-                    progressDiv.innerHTML = '<a href="/api/reports/' + job_id + '/download" style="color:#22c55e;">Relatório pronto — clique para baixar</a>';
+                    // Download via fetch para enviar token JWT no header
+                    const downloadUrl = '/api/reports/' + job_id + '/download';
+                    try {
+                        const dlRes = await fetch(downloadUrl, { headers: getHeaders() });
+                        if (!dlRes.ok) throw new Error('Erro ao baixar PDF');
+                        const blob = await dlRes.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = liveId + '_report.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        progressDiv.innerHTML = '<span style="color:#22c55e;">Relatório baixado com sucesso.</span>';
+                    } catch (e) {
+                        progressDiv.innerHTML = '<span style="color:#ef4444;">Erro ao baixar: ' + e.message + '</span>';
+                    }
                     btn.disabled = false;
                 } else if (job.status === 'failed') {
                     clearInterval(pollInterval);
