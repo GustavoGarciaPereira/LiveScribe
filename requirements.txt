@@ -28,6 +28,9 @@ httpx-oauth
 python-multipart
 bcrypt
 
+# Transcricao YouTube
+youtube-transcript-api
+
 # PDF
 weasyprint
 

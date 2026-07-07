@@ -320,8 +320,12 @@ class ChatService:
             "emojis": emojis,
         }
 
-    def topic_sentiment(self, live_id: str, top_n: int = 10, user_id: int | None = None) -> dict | None:
-        """Cruza tópicos com sentimento/emoção — 'o sentimento X é sobre qual assunto?'"""
+    def topic_sentiment(self, live_id: str, top_n: int = 10, user_id: int | None = None, video_id: str | None = None) -> dict | None:
+        """Cruza tópicos com sentimento/emoção — 'o sentimento X é sobre qual assunto?'
+
+        Se video_id for fornecido, enriquece cada tópico com o trecho transcrito
+        do momento de pico (YouTube Transcript API).
+        """
         messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:
             return None
@@ -331,6 +335,17 @@ class ChatService:
 
         texts = [m.message for m in messages]
         topics = self.topic_extractor.extract(texts, top_n)
+
+        # Busca transcrição se video_id foi fornecido
+        transcript = None
+        if video_id:
+            from app.services.transcript import TranscriptService
+            transcript = TranscriptService.get_transcript(video_id)
+
+        # Calcula o offset: diferença entre o timestamp da primeira mensagem
+        # e o início do vídeo (para alinhar transcrição com chat)
+        first_msg_time = to_local(messages[0].created_at)
+        live_start_offset = first_msg_time.timestamp() if transcript else 0
 
         result_topics = []
         for topic in topics:
@@ -351,7 +366,7 @@ class ChatService:
             dominant_emotion = "neutro"
             if self.emotion_analyzer:
                 emotions = self.emotion_analyzer.analyze(matching_texts)
-                if emotions:
+                if emotions and any(emotions.values()):
                     dominant_emotion = max(emotions, key=emotions.get)
 
             # Minuto de pico
@@ -363,12 +378,26 @@ class ChatService:
             if minute_counts:
                 peak_minute = max(minute_counts, key=minute_counts.get)
 
+            # Trecho transcrito no pico
+            transcript_snippet = None
+            peak_timestamp = None
+            if transcript and peak_minute:
+                # Converte HH:MM para segundos a partir do início da live
+                parts = peak_minute.split(":")
+                peak_seconds = int(parts[0]) * 60 + int(parts[1])
+                # Ajusta pelo offset da primeira mensagem
+                absolute_ts = live_start_offset + peak_seconds
+                transcript_snippet = TranscriptService.find_snippet_at(transcript, absolute_ts)
+                peak_timestamp = round(absolute_ts, 1)
+
             result_topics.append({
                 "topic": term,
                 "message_count": len(matching),
                 "sentiment": sentiments,
                 "dominant_emotion": dominant_emotion,
                 "peak_minute": peak_minute,
+                "transcript_snippet": transcript_snippet,
+                "peak_timestamp": peak_timestamp,
             })
 
         # Ordena por message_count decrescente

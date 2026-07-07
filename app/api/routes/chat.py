@@ -293,11 +293,16 @@ def export_data(
 def topic_sentiment(
     live_id: str,
     top_n: int = 10,
+    video_id: str | None = None,
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
-    """Cruza tópicos extraídos com sentimento e emoção das mensagens."""
-    result = service.topic_sentiment(live_id, top_n, user_id=user.id)
+    """Cruza tópicos extraídos com sentimento e emoção das mensagens.
+
+    Se video_id for fornecido, enriquece com trechos transcritos do YouTube
+    no momento de pico de cada tópico.
+    """
+    result = service.topic_sentiment(live_id, top_n, user_id=user.id, video_id=video_id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     return TopicSentimentResponse(

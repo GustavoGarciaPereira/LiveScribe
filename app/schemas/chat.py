@@ -174,6 +174,8 @@ class TopicSentimentItem(BaseModel):
     sentiment: dict[str, int]
     dominant_emotion: str
     peak_minute: str | None = None
+    transcript_snippet: str | None = None
+    peak_timestamp: float | None = None
 
 
 class TopicSentimentResponse(BaseModel):

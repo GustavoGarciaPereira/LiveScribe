@@ -134,8 +134,13 @@
         </div>
         <div class="card">
             <h2>🎯 Sentimento por topico</h2>
+            <div style="margin-bottom:0.5rem;">
+                <input type="text" id="video-id-input" placeholder="Video ID (opcional, para transcricao)" style="width:100%; max-width:250px; background:#334155; border:1px solid #475569; color:#e2e8f0; padding:0.35rem 0.6rem; border-radius:6px; font-size:0.85rem;">
+                <button id="video-id-apply" style="font-size:0.8rem; padding:0.35rem 0.7rem; margin-left:0.25rem;">Buscar</button>
+            </div>
             <div id="topic-sentiment-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
             <canvas id="topic-sentiment-chart"></canvas>
+            <div id="topic-sentiment-detail" style="margin-top:0.5rem; font-size:0.8rem; color:#94a3b8;"></div>
         </div>
         <div class="card">
             <h2>Exportar dados</h2>
@@ -583,18 +588,27 @@ function renderEmotion() {
 }
 
 async function loadTopicSentiment(liveId) {
+    const videoId = document.getElementById('video-id-input').value.trim();
+    let url = API + '/' + liveId + '/topic-sentiment?top_n=10';
+    if (videoId) url += '&video_id=' + encodeURIComponent(videoId);
     try {
-        const res = await fetch(API + '/' + liveId + '/topic-sentiment?top_n=10', { headers: getHeaders() });
+        const res = await fetch(url, { headers: getHeaders() });
         const data = await res.json();
         cachedData.topicSentiment = data;
         renderTopicSentiment();
     } catch (e) { showEmpty('topic-sentiment', true); }
 }
 
+document.getElementById('video-id-apply').addEventListener('click', () => {
+    const liveId = document.getElementById('live-select').value;
+    if (liveId) loadTopicSentiment(liveId);
+});
+
 function renderTopicSentiment() {
     const data = cachedData.topicSentiment;
     if (!data || !data.topics || data.topics.length === 0) {
         showEmpty('topic-sentiment', true);
+        document.getElementById('topic-sentiment-detail').innerHTML = '';
         return;
     }
     showEmpty('topic-sentiment', false);
@@ -622,13 +636,26 @@ function renderTopicSentiment() {
                     callbacks: {
                         afterLabel: function(ctx) {
                             const t = data.topics[ctx.dataIndex];
-                            return 'Pico: ' + (t.peak_minute || 'N/D') + ' | Emoção: ' + t.dominant_emotion;
+                            let lines = ['Pico: ' + (t.peak_minute || 'N/D') + ' | Emoção: ' + t.dominant_emotion];
+                            if (t.transcript_snippet) {
+                                lines.push('🎤 ' + t.transcript_snippet.substring(0, 120) + (t.transcript_snippet.length > 120 ? '...' : ''));
+                            }
+                            return lines;
                         }
                     }
                 }
             }
         }
     });
+
+    // Detalhes abaixo do gráfico com trechos transcritos
+    let detailHtml = '';
+    data.topics.forEach(t => {
+        if (t.transcript_snippet) {
+            detailHtml += '<div style="margin-bottom:0.3rem;"><strong>' + t.topic + '</strong> <span style="color:#64748b;">(' + t.peak_minute + ')</span>: ' + t.transcript_snippet + '</div>';
+        }
+    });
+    document.getElementById('topic-sentiment-detail').innerHTML = detailHtml;
 }
 
 function applyFilters() {

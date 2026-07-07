@@ -78,7 +78,7 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 <h3>Sentimento por Topico</h3>
 {% if topic_sentiment %}
 <table>
-  <tr><th>Topico</th><th>Msgs</th><th>Positivo</th><th>Negativo</th><th>Neutro</th><th>Emocao Dominante</th><th>Pico</th></tr>
+  <tr><th>Topico</th><th>Msgs</th><th>Pos</th><th>Neg</th><th>Neu</th><th>Emocao</th><th>Pico</th><th>O que estava sendo falado</th></tr>
   {% for t in topic_sentiment %}
   <tr>
     <td><strong>{{ t.topic }}</strong></td>
@@ -88,6 +88,7 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
     <td class="neutral">{{ t.sentiment.Neutro }}</td>
     <td>{{ t.dominant_emotion }}</td>
     <td>{{ t.peak_minute or 'N/D' }}</td>
+    <td style="font-size:8pt;">{{ t.transcript_snippet or '—' }}</td>
   </tr>
   {% endfor %}
 </table>
