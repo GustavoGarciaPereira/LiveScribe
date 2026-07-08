@@ -71,6 +71,13 @@ class ChatService:
         for msg in messages:
             words = re.findall(r'\b\w+\b', msg.message.lower())
             words = [w for w in words if w not in PORTUGUESE_STOPWORDS]
+            # Filtra URLs, digitos puros e tokens muito curtos
+            words = [
+                w for w in words
+                if 'http' not in w
+                and not w.isdigit()
+                and len(w) >= 2
+            ]
             all_words.extend(words)
 
         return Counter(all_words).most_common(top_n)

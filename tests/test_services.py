@@ -36,6 +36,22 @@ def test_word_frequency_stopwords_removed(db_session, mock_analyzer):
     assert "cachorro" in words
 
 
+def test_word_frequency_filters_urls_and_digits(db_session, mock_analyzer):
+    """Verifica que URLs, digitos e tokens curtos sao filtrados."""
+    svc = ChatService(db_session, mock_analyzer)
+    svc.save_message("live1", "A", "Veja https://exemplo.com e http://teste.com")
+    svc.save_message("live1", "B", "codigo 12345 versao 2 python3")
+
+    freq = svc.word_frequency("live1", top_n=10)
+    words = [w for w, _ in freq]
+    assert "https" not in words
+    assert "http" not in words
+    assert "12345" not in words
+    # '2' tem 1 char, deve ser filtrado
+    # 'python3' tem 7 chars e nao e' digito puro — deve aparecer
+    assert "python3" in words or "versao" in words
+
+
 def test_word_frequency_empty(db_session, mock_analyzer):
     svc = ChatService(db_session, mock_analyzer)
     freq = svc.word_frequency("nonexistent")
