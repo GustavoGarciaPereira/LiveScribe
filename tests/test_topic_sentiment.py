@@ -33,6 +33,7 @@ class TestTopicSentimentService:
         assert live_topic["message_count"] >= 1
         assert "Positivo" in live_topic["sentiment"]
         assert live_topic["dominant_emotion"] == "alegria"
+        assert "statistics" in live_topic
 
     def test_no_messages_returns_none(self, db_session, mock_analyzer, mock_topic_extractor):
         """Live vazia retorna None."""

@@ -32,10 +32,17 @@ class WordFrequencyResponse(BaseModel):
     word_frequency: list[WordFrequencyItem]
 
 
+class SentimentStatistics(BaseModel):
+    mean: float | None = None
+    std_dev: float | None = None
+    ci_95: list[float] | None = None
+
+
 class SentimentResponse(BaseModel):
     live_id: str
     total_messages_analyzed: int
     sentiment_summary: dict[str, int]
+    statistics: SentimentStatistics | None = None
     library_used: str
     model: str
 
@@ -57,6 +64,7 @@ class TimelineBucket(BaseModel):
     end_time: datetime
     total_messages: int
     sentiments: dict[str, int]
+    statistics: SentimentStatistics | None = None
 
 
 class SentimentTimelineResponse(BaseModel):
@@ -172,6 +180,7 @@ class TopicSentimentItem(BaseModel):
     topic: str
     message_count: int
     sentiment: dict[str, int]
+    statistics: SentimentStatistics | None = None
     dominant_emotion: str
     peak_minute: str | None = None
     transcript_snippet: str | None = None

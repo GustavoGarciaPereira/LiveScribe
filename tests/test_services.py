@@ -99,6 +99,52 @@ def test_leia_analyzer_multiple():
     assert sum(result.values()) == 3
 
 
+def test_leia_statistics_computed():
+    """analyze_with_compound retorna estatisticas corretas."""
+    analyzer = LeiaSentimentAnalyzer()
+    texts = [
+        "Que live maravilhosa! Incrível!",
+        "Odio disso, horrivel",
+        "Tanto faz, qualquer coisa",
+    ]
+    counts, compounds = analyzer.analyze_with_compound(texts)
+    assert len(compounds) == 3
+    assert sum(counts.values()) == 3
+    # compound scores devem estar entre -1 e +1
+    for c in compounds:
+        assert -1 <= c <= 1
+
+    stats = ChatService._compute_statistics(compounds)
+    assert stats is not None
+    assert stats["mean"] is not None
+    assert stats["std_dev"] is not None
+    assert stats["ci_95"] is not None
+    assert len(stats["ci_95"]) == 2
+
+
+def test_sentiment_summary_includes_statistics(db_session, mock_analyzer):
+    """sentiment_summary retorna campo statistics."""
+    # Mock com analyze_with_compound para testar o fluxo
+    from unittest.mock import MagicMock
+    mock = MagicMock()
+    mock.analyze.return_value = {"Positivo": 1, "Negativo": 0, "Neutro": 0}
+    mock.analyze_with_compound.return_value = ({"Positivo": 1, "Negativo": 0, "Neutro": 0}, [0.5, 0.3, 0.8])
+
+    svc = ChatService(db_session, mock)
+    svc.save_message("live-stats", "A", "Mensagem 1")
+    svc.save_message("live-stats", "A", "Mensagem 2")
+    svc.save_message("live-stats", "A", "Mensagem 3")
+
+    result = svc.sentiment_summary("live-stats")
+    assert result is not None
+    assert "statistics" in result
+    stats = result["statistics"]
+    assert stats is not None
+    assert stats["mean"] is not None
+    assert stats["std_dev"] is not None
+    assert stats["ci_95"] is not None
+
+
 # ── Testes dos novos métodos do ChatService ────────────────────
 
 

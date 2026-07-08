@@ -1,5 +1,6 @@
 from collections import Counter
 from datetime import timedelta
+import math
 import re
 
 from app.core.stopwords import PORTUGUESE_STOPWORDS
@@ -56,6 +57,37 @@ class ChatService:
 
         return buckets
 
+    @staticmethod
+    def _compute_statistics(compounds: list[float]) -> dict | None:
+        """Calcula media, desvio padrao e IC 95% a partir de compound scores."""
+        n = len(compounds)
+        if n == 0:
+            return None
+        mean = sum(compounds) / n
+        if n < 2:
+            return {"mean": round(mean, 4), "std_dev": None, "ci_95": None}
+        variance = sum((x - mean) ** 2 for x in compounds) / (n - 1)
+        std_dev = math.sqrt(variance)
+        margin = 1.96 * std_dev / math.sqrt(n)
+        return {
+            "mean": round(mean, 4),
+            "std_dev": round(std_dev, 4),
+            "ci_95": [round(mean - margin, 4), round(mean + margin, 4)],
+        }
+
+    @staticmethod
+    def _get_compound_scores(analyzer, texts: list[str]) -> list[float]:
+        """Extrai compound scores do analyzer via analyze_with_compound, se disponivel."""
+        if not hasattr(analyzer, "analyze_with_compound"):
+            return []
+        try:
+            result = analyzer.analyze_with_compound(texts)
+            if isinstance(result, tuple) and len(result) == 2:
+                return result[1]
+        except (TypeError, ValueError):
+            pass
+        return []
+
     def list_lives(self, user_id: int | None = None) -> list[dict]:
         return list_lives(self.db, user_id=user_id)
 
@@ -90,11 +122,14 @@ class ChatService:
             return None
 
         sentiments = self.sentiment_analyzer.analyze(texts)
+        compounds = self._get_compound_scores(self.sentiment_analyzer, texts)
+        statistics = self._compute_statistics(compounds)
 
         return {
             "model": "LeIA (VADER adaptado para português)",
             "sentiments": sentiments,
             "total_messages": len(texts),
+            "statistics": statistics,
         }
 
     def sentiment_timeline(self, live_id: str, interval_minutes: int = 5, user_id: int | None = None) -> dict | None:
@@ -108,11 +143,14 @@ class ChatService:
         for bucket in buckets:
             texts = [m.message for m in bucket["msgs"]]
             sentiments = self.sentiment_analyzer.analyze(texts) if texts else {"Positivo": 0, "Negativo": 0, "Neutro": 0}
+            compounds = self._get_compound_scores(self.sentiment_analyzer, texts) if texts else []
+            bucket_stats = self._compute_statistics(compounds)
             timeline.append({
                 "start_time": bucket["start"],
                 "end_time": bucket["end"],
                 "total_messages": len(bucket["msgs"]),
                 "sentiments": sentiments,
+                "statistics": bucket_stats,
             })
 
         return {
@@ -366,6 +404,8 @@ class ChatService:
 
             # Sentimento
             sentiments = self.sentiment_analyzer.analyze(matching_texts)
+            compounds = self._get_compound_scores(self.sentiment_analyzer, matching_texts)
+            topic_stats = self._compute_statistics(compounds)
 
             # Emoção dominante
             dominant_emotion = "neutro"
@@ -405,6 +445,7 @@ class ChatService:
                 "topic": term,
                 "message_count": len(matching),
                 "sentiment": sentiments,
+                "statistics": topic_stats,
                 "dominant_emotion": dominant_emotion,
                 "peak_minute": peak_minute,
                 "transcript_snippet": transcript_snippet,

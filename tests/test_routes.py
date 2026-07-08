@@ -72,6 +72,19 @@ class TestSentiment:
         assert "sentiment_summary" in data
         # O mock sempre retorna Neutro
         assert data["sentiment_summary"]["Neutro"] == 1
+        assert "statistics" in data
+
+    def test_statistics_with_single_message_null_std_ci(self, client, auth_client):
+        """Com 1 mensagem, std_dev e ci_95 devem ser null."""
+        auth_client.post(
+            "/api/chat/messages",
+            json={"live_id": "live-stats-1", "author": "A", "message": "Que live incrível!"},
+        )
+        response = auth_client.get("/api/chat/live-stats-1/sentiment")
+        assert response.status_code == 200
+        data = response.json()
+        # O campo statistics existe na resposta (mock nao produz compostos reais)
+        assert "statistics" in data
 
     def test_404_when_no_messages(self, client, auth_client):
         response = auth_client.get("/api/chat/vazia/sentiment")

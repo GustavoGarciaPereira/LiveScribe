@@ -34,3 +34,21 @@ class LeiaSentimentAnalyzer(SentimentAnalyzer):
                 counts["Neutro"] += 1
 
         return counts
+
+    def analyze_with_compound(self, texts: list[str]) -> tuple[dict[str, int], list[float]]:
+        """Analisa sentimentos e retorna (counts, lista de compound scores)."""
+        counts = {"Positivo": 0, "Negativo": 0, "Neutro": 0}
+        compounds: list[float] = []
+
+        for text in texts:
+            scores = self.analyzer.polarity_scores(text)
+            compound = scores["compound"]
+            compounds.append(compound)
+            if compound >= 0.05:
+                counts["Positivo"] += 1
+            elif compound <= -0.05:
+                counts["Negativo"] += 1
+            else:
+                counts["Neutro"] += 1
+
+        return counts, compounds
