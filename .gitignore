@@ -23,3 +23,4 @@ short_block
 .reasonix/*
 data/app.db-wal
 data/app.db-shm
+reasonix.toml
