@@ -127,6 +127,11 @@ class ReportQueue:
                 chat_service = ChatService(db, sentiment, topic, emoji, modality, emotion)
 
                 job.progress = 30
+                # Recarrega o modulo report.py para evitar cache do worker thread
+                import importlib
+                import app.services.report
+                importlib.reload(app.services.report)
+                from app.services.report import ReportService
                 report_service = ReportService(chat_service)
 
                 job.progress = 50

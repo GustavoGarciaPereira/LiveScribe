@@ -875,6 +875,14 @@ const loginForm = document.getElementById('login-form');
 const userInfo = document.getElementById('user-info');
 const displayEmail = document.getElementById('display-email');
 
+// Fallback getHeaders para o caso de o primeiro script nao ter carregado
+if (typeof getHeaders === 'undefined') {
+    function getHeaders() {
+        const token = localStorage.getItem('token');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+}
+
 function checkAuthState() {
     const token = localStorage.getItem('token');
     const email = localStorage.getItem('user_email');
