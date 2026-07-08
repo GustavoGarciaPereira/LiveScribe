@@ -33,7 +33,7 @@ app/
 │   └── messages.py          -> create_message, list_messages_by_live, list_lives, list_top_authors
 ├── schemas/
 │   ├── auth.py              -> LoginRequest, RegisterRequest, TokenResponse, UserInfo
-│   ├── chat.py              -> ChatMessage, MessageResponse, WordFrequency*, Sentiment*, LiveSummary, TimelineBucket, EngagementPeak, TopicItem, TopicBucket, EmojiItem, AuthorItem + Responses
+│   ├── chat.py              -> ChatMessage, MessageResponse, WordFrequency*, Sentiment*, SentimentStatistics, LiveSummary, TimelineBucket, EngagementPeak, TopicItem, TopicBucket, EmojiItem, AuthorItem + Responses
 │   └── webhook.py           -> WebhookCreate, WebhookResponse
 ├── services/
 │   ├── auth.py              -> create_access_token, verify_token (JWT, jose)
@@ -115,7 +115,7 @@ tests/
 | POST | /api/chat/messages | opcional | Salvar mensagem do chat |
 | GET | /api/chat/lives | 🔒 | Lista lives do usuario |
 | GET | /api/chat/{live_id}/word-frequency | 🔒 | Top-N palavras (com filtro de URLs e digitos) |
-| GET | /api/chat/{live_id}/sentiment | 🔒 | Analise de sentimentos |
+| GET | /api/chat/{live_id}/sentiment | 🔒 | Analise de sentimentos com media e IC 95% |
 | GET | /api/chat/{live_id}/sentiment-timeline | 🔒 | Timeline de sentimentos por bucket |
 | GET | /api/chat/{live_id}/engagement-peaks | 🔒 | Picos de engajamento |
 | GET | /api/chat/{live_id}/topics | 🔒 | Topicos via TF-IDF (com filtro de tokens) |
@@ -195,7 +195,10 @@ tests/
 12. **Snippet de transcricao varia por topico** — cada topico recebe o snippet do seu proprio minuto de pico
 13. **Relatorio PDF enriquecido** — `video_id=live_id` passado ao topic_sentiment; `word_frequency` filtra URLs, digitos e tokens < 2 caracteres
 14. **Dashboard — Top Perguntas** — limitado a 10 itens com botao expansivel "Ver mais"
-15. **143+ testes, 89% de cobertura**
+15. **Estatisticas de sentimento** — `analyze_with_compound` no LeIA; `_compute_statistics` com mean, std_dev, IC 95% adicionado a `/sentiment`, `/sentiment-timeline` e `/topic-sentiment`
+16. **Indicadores no dashboard** — Media e IC 95% exibidos abaixo do grafico de sentimentos
+17. **Colunas no relatorio PDF** — Media e IC 95% adicionados a tabela de Sentimento por Topico
+18. **147+ testes, 89% de cobertura**
 
 ## Comandos uteis
 
