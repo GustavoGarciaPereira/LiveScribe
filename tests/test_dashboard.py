@@ -56,3 +56,6 @@ class TestDashboard:
         assert "filter-time-start" in html
         assert "filter-time-end" in html
         assert "filter-apply-btn" in html
+        assert "sentiment-stats" in html
+        assert "loadSentimentSummary" in html
+        assert "renderSentimentStats" in html

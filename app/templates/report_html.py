@@ -78,7 +78,7 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 <h3>Sentimento por Topico</h3>
 {% if topic_sentiment %}
 <table>
-  <tr><th>Topico</th><th>Msgs</th><th>Pos</th><th>Neg</th><th>Neu</th><th>Emocao</th><th>Pico</th><th>O que estava sendo falado</th></tr>
+  <tr><th>Topico</th><th>Msgs</th><th>Pos</th><th>Neg</th><th>Neu</th><th>Media</th><th>IC 95%</th><th>Emocao</th><th>Pico</th><th>O que estava sendo falado</th></tr>
   {% for t in topic_sentiment %}
   <tr>
     <td><strong>{{ t.topic }}</strong></td>
@@ -86,6 +86,8 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
     <td class="positive">{{ t.sentiment.Positivo }}</td>
     <td class="negative">{{ t.sentiment.Negativo }}</td>
     <td class="neutral">{{ t.sentiment.Neutro }}</td>
+    <td>{% if t.statistics and t.statistics.mean is not none %}{{ "%.2f" | format(t.statistics.mean) }}{% else %}—{% endif %}</td>
+    <td style="font-size:8pt;">{% if t.statistics and t.statistics.ci_95 %}[{{ "%.2f" | format(t.statistics.ci_95[0]) }}, {{ "%.2f" | format(t.statistics.ci_95[1]) }}]{% else %}—{% endif %}</td>
     <td>{{ t.dominant_emotion }}</td>
     <td>{{ t.peak_minute or 'N/D' }}</td>
     <td style="font-size:8pt;">{{ t.transcript_snippet or '—' }}</td>

@@ -40,6 +40,29 @@ class TestReportService:
         assert pdf_bytes.startswith(b"%PDF-")
 
 
+def test_report_template_has_statistics_columns():
+    """O template do relatorio contem colunas Media e IC 95%."""
+    from app.templates.report_html import report_html
+    source = report_html.render({
+        "live_id": "test", "total_messages": 1, "unique_authors": 1,
+        "first_msg": "", "last_msg": "", "duration": "",
+        "sentiment_summary": {}, "word_freq": [], "topics": [],
+        "topic_sentiment": [{
+            "topic": "teste", "message_count": 1,
+            "sentiment": {"Positivo": 1, "Negativo": 0, "Neutro": 0},
+            "statistics": {"mean": 0.5, "std_dev": 0.1, "ci_95": [0.3, 0.7]},
+            "dominant_emotion": "alegria", "peak_minute": "00:01",
+        }],
+        "authors": [], "questions": [], "emojis": [],
+        "charts": {}, "generated_at": "",
+    })
+    assert "Media" in source
+    assert "IC 95%" in source
+    assert "0.50" in source  # mean formatado
+    assert "0.30" in source  # ci_95 lower
+    assert "0.70" in source  # ci_95 upper
+
+
 class TestReportRoutes:
     def test_create_report_requires_auth(self, client):
         resp = client.post("/api/reports?live_id=test-live")

@@ -82,6 +82,7 @@
             <h2>Sentimentos ao longo do tempo</h2>
             <div id="timeline-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
             <canvas id="timeline-chart"></canvas>
+            <div id="sentiment-stats" class="hidden" style="margin-top:0.5rem;font-size:0.85rem;color:#94a3b8;text-align:center;"></div>
         </div>
         <div class="card">
             <h2>Picos de engajamento</h2>
@@ -243,6 +244,7 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadModalityTimeline(liveId),
         loadEmotionTimeline(liveId),
         loadTopicSentiment(liveId),
+        loadSentimentSummary(liveId),
     ]);
 });
 
@@ -280,6 +282,34 @@ function renderTimeline() {
     timelineChart = new Chart(document.getElementById('timeline-chart'), {
         type: 'line', data: { labels, datasets }, options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
+}
+
+async function loadSentimentSummary(liveId) {
+    try {
+        const res = await fetch(`${API}/${liveId}/sentiment`, { headers: getHeaders() });
+        const data = await res.json();
+        cachedData.sentimentSummary = data;
+        renderSentimentStats();
+    } catch (e) {
+        const el = document.getElementById('sentiment-stats');
+        if (el) el.classList.add('hidden');
+    }
+}
+
+function renderSentimentStats() {
+    const data = cachedData.sentimentSummary;
+    const el = document.getElementById('sentiment-stats');
+    if (!el) return;
+    if (!data || !data.statistics) { el.classList.add('hidden'); return; }
+    const stats = data.statistics;
+    if (stats.mean === undefined || stats.mean === null) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    const color = stats.mean > 0.05 ? '#22c55e' : stats.mean < -0.05 ? '#ef4444' : '#94a3b8';
+    let html = '<span style="color:' + color + ';font-weight:600;">M\u00e9dia: ' + stats.mean.toFixed(2) + '</span>';
+    if (stats.ci_95) {
+        html += ' &nbsp;\u00b7&nbsp; <span style="color:#64748b;">IC 95%: [' + stats.ci_95[0].toFixed(2) + ', ' + stats.ci_95[1].toFixed(2) + ']</span>';
+    }
+    el.innerHTML = html;
 }
 
 async function loadPeaks(liveId) {
