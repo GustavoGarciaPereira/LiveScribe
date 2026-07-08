@@ -162,6 +162,7 @@ let livesData = [];
 let cachedData = {};
 let activeTerms = [];
 let currentFilters = { sentiment: 'Todos', timeStart: '', timeEnd: '' };
+let questionsShowAll = false;
 
 function showEmpty(sectionId, show) {
     const emptyEl = document.getElementById(sectionId + '-empty');
@@ -502,17 +503,39 @@ function renderQuestions() {
         return;
     }
     showEmpty('questions', false);
+
+    // Se nao ha filtro ativo, limita a 10 itens por padrao (expansivel)
+    const showAll = filter || questionsShowAll;
+    const displayItems = showAll ? filtered : filtered.slice(0, 10);
+
     let html = '<table style="width:100%; border-collapse:collapse;">';
     html += '<tr style="color:#94a3b8;font-size:13px;"><th style="text-align:left;padding:4px;">Pergunta</th><th style="text-align:right;padding:4px;">Mencoes</th></tr>';
-    filtered.forEach(q => {
+    displayItems.forEach(q => {
         const examplesStr = q.examples.length > 1 ? ' (ex: ' + q.examples.slice(0,2).map(e => '"' + e + '"').join(', ') + ')' : '';
         html += '<tr><td style="padding:4px;font-size:14px;">' + q.text + '<br><span style="font-size:11px;color:#64748b;">' + examplesStr + '</span></td><td style="text-align:right;padding:4px;">' + q.count + '</td></tr>';
     });
     html += '</table>';
+
+    // Botao "Ver mais" / "Ver menos" (so quando nao ha filtro ativo)
+    if (!filter && filtered.length > 10) {
+        const label = showAll ? '▲ Ver menos' : '▼ Ver mais (' + (filtered.length - 10) + ' ocultas)';
+        html += '<div style="text-align:center;margin-top:0.5rem;"><button id="questions-toggle-btn" style="font-size:0.8rem;padding:0.3rem 1rem;background:transparent;border:1px solid #3b82f6;color:#3b82f6;border-radius:6px;cursor:pointer;">' + label + '</button></div>';
+    }
+
     list.innerHTML = html;
+
+    // Vincula o evento depois de inserir no DOM
+    const toggleBtn = document.getElementById('questions-toggle-btn');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            questionsShowAll = !questionsShowAll;
+            renderQuestions();
+        });
+    }
 }
 
 document.getElementById('questions-search').addEventListener('input', () => {
+    questionsShowAll = false;  // reset ao pesquisar
     if (cachedData.questions) renderQuestions();
 });
 
