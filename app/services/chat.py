@@ -338,8 +338,8 @@ class ChatService:
 
         # Busca transcrição se video_id foi fornecido
         transcript = None
+        from app.services.transcript import TranscriptService
         if video_id:
-            from app.services.transcript import TranscriptService
             transcript = TranscriptService.get_transcript(video_id)
 
         # Primeira mensagem como referência para elapsed time
@@ -367,29 +367,39 @@ class ChatService:
                 if emotions and any(emotions.values()):
                     dominant_emotion = max(emotions, key=emotions.get)
 
-            # Pico: bucket de 60s em segundos decorridos desde a primeira mensagem
-            peak_second = None
-            second_counts: dict[int, int] = {}
+            # Pico: minuto com mais mensagens (datetime arredondado para minuto)
+            peak_minute_dt = None
+            minute_counts: dict[str, int] = {}
             for m in matching:
-                elapsed = int((to_local(m.created_at) - first_msg_time).total_seconds())
-                bucket = (elapsed // 60) * 60  # bucket de 60s
-                second_counts[bucket] = second_counts.get(bucket, 0) + 1
-            if second_counts:
-                peak_second = max(second_counts, key=second_counts.get)
+                dt = to_local(m.created_at)
+                minute_key = dt.replace(second=0, microsecond=0)
+                minute_counts[minute_key] = minute_counts.get(minute_key, 0) + 1
+            if minute_counts:
+                peak_minute_dt = max(minute_counts, key=minute_counts.get)
 
-            # Trecho transcrito no pico (usando elapsed seconds diretamente)
-            transcript_snippet = None
+            # peak_timestamp: segundos decorridos da primeira mensagem ate o pico
             peak_timestamp = None
-            if transcript and peak_second is not None:
-                transcript_snippet = TranscriptService.find_snippet_at(transcript, float(peak_second))
-                peak_timestamp = round(float(peak_second), 1)
+            peak_minute = None
+            if peak_minute_dt is not None:
+                elapsed = (peak_minute_dt - first_msg_time).total_seconds()
+                peak_timestamp = round(max(elapsed, 0), 1)
+                # Formata como HH:MM:SS ou MM:SS (tempo decorrido)
+                total_sec = int(elapsed)
+                h, rem = divmod(total_sec, 3600)
+                m, s = divmod(rem, 60)
+                peak_minute = f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+
+            # Trecho transcrito no pico
+            transcript_snippet = None
+            if transcript and peak_timestamp is not None:
+                transcript_snippet = TranscriptService.find_snippet_at(transcript, peak_timestamp)
 
             result_topics.append({
                 "topic": term,
                 "message_count": len(matching),
                 "sentiment": sentiments,
                 "dominant_emotion": dominant_emotion,
-                "peak_minute": None,
+                "peak_minute": peak_minute,
                 "transcript_snippet": transcript_snippet,
                 "peak_timestamp": peak_timestamp,
             })

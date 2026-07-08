@@ -117,7 +117,7 @@ class TestTopicSentimentWithTranscript:
         assert result is not None
         topic = result["topics"][0]
         assert topic["transcript_snippet"] is None
-        assert topic["peak_timestamp"] is None
+        assert topic["peak_timestamp"] is not None
 
     def test_topic_sentiment_with_unavailable_transcript(self, db_session, mock_analyzer):
         """Com video_id mas transcricao indisponivel, endpoint funciona normalmente."""
