@@ -277,6 +277,32 @@ def test_sentiment_timeline_significance_stable(db_session, mock_analyzer):
     assert second["change_direction"] == "stable"
 
 
+def test_sentiment_timeline_skip_empty_filters_buckets(db_session, mock_analyzer):
+    """skip_empty=True remove buckets sem mensagens."""
+    from datetime import datetime, timezone, timedelta
+    from app.models.message import Message
+
+    svc = ChatService(db_session, mock_analyzer)
+    base = datetime.now(timezone.utc)
+    # Duas mensagens com intervalo grande (simula duas sessoes)
+    db_session.add(Message(live_id="live-skip", author="A", message="Msg 1", created_at=base))
+    db_session.add(Message(live_id="live-skip", author="A", message="Msg 2", created_at=base + timedelta(hours=2)))
+    db_session.commit()
+
+    # Com skip_empty=True (padrao), buckets vazios sao removidos
+    result = svc.sentiment_timeline("live-skip", interval_minutes=30)
+    assert result is not None
+    for b in result["timeline"]:
+        assert b["total_messages"] > 0, f"Bucket vazio nao deveria estar na lista: {b}"
+
+    # Com skip_empty=False, buckets vazios aparecem
+    result_all = svc.sentiment_timeline("live-skip", interval_minutes=30, skip_empty=False)
+    assert result_all is not None
+    total = len(result_all["timeline"])
+    non_empty = len(result["timeline"])
+    assert total > non_empty, f"Esperado mais buckets com skip_empty=False ({total} > {non_empty})"
+
+
 def test_engagement_peaks(db_session, mock_analyzer, mock_topic_extractor):
     svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
     svc.save_message("live1", "A", "msg1")

@@ -132,7 +132,7 @@ class ChatService:
             "statistics": statistics,
         }
 
-    def sentiment_timeline(self, live_id: str, interval_minutes: int = 5, user_id: int | None = None) -> dict | None:
+    def sentiment_timeline(self, live_id: str, interval_minutes: int = 5, user_id: int | None = None, skip_empty: bool = True) -> dict | None:
         messages = list_messages_by_live(self.db, live_id, user_id=user_id)
         if not messages:
             return None
@@ -191,6 +191,10 @@ class ChatService:
                 entry["change_direction"] = "drop"
             else:
                 entry["change_direction"] = "stable"
+
+        # Remove buckets vazios (sem mensagens) para nao inflar contagem
+        if skip_empty:
+            timeline = [e for e in timeline if e["total_messages"] > 0]
 
         return {
             "live_id": live_id,

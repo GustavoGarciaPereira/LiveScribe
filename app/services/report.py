@@ -41,6 +41,8 @@ class ReportService:
         timeline = sentiment_timeline.get("timeline", []) if sentiment_timeline else []
         if not isinstance(timeline, list):
             timeline = []
+        # Remove buckets vazios (defesa extra caso skip_empty nao tenha funcionado)
+        timeline = [b for b in timeline if b.get("total_messages", 0) > 0]
 
         total_messages = len(messages)
         unique_authors = len(set(m.author for m in messages)) if messages else 0
