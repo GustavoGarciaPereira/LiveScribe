@@ -65,6 +65,7 @@ class ReportService:
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
             "sentiment_timeline": sentiment_timeline.get("timeline", []) if sentiment_timeline else [],
+            "total_intervals": len(sentiment_timeline.get("timeline", [])) if sentiment_timeline else 0,
             "charts": charts,
             "generated_at": now_local().strftime("%d/%m/%Y %H:%M BRT"),
         }

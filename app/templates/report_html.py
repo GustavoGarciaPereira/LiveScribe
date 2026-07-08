@@ -149,8 +149,8 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
     </tr>
     {% endfor %}
   </table>
-  {% set total = sentiment_timeline | length %}
   {% set sig_count = sig_buckets | length %}
+  {% set total = total_intervals if total_intervals is defined else sentiment_timeline | length %}
   {% set non_sig = total - sig_count %}
   <p style="font-size:9pt;color:#475569;margin-top:0.2cm;">Dos {{ total }} intervalos analisados, {{ sig_count }} apresentaram mudancas estatisticamente significativas (p &lt; 0.05). As demais flutuacoes podem ser atribuidas ao acaso.</p>
   {% else %}

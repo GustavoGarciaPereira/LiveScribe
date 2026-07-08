@@ -76,10 +76,12 @@ def test_report_template_has_significance_section():
             {"start_time": "2024-01-01T18:05", "significant_change": True, "p_value": 0.003, "change_direction": "drop", "change_magnitude": -0.5},
             {"start_time": "2024-01-01T18:10", "significant_change": True, "p_value": 0.012, "change_direction": "rise", "change_magnitude": 0.35},
         ],
+        "total_intervals": 3,
         "charts": {}, "generated_at": "",
     })
     assert "Momentos de Virada Significativa" in source
     assert "mudancas estatisticamente significativas" in source
+    assert "Dos 3 intervalos analisados" in source
     assert "0.003" in source
     assert "0.012" in source
 
