@@ -33,16 +33,51 @@ class TfidfTopicExtractor(TopicExtractor):
             sublinear_tf=True,
         )
 
+    @staticmethod
+    def _filter_tokens(text: str) -> str:
+        """Remove tokens irrelevantes de um texto: @mencoes, URLs, digitos,
+        repeticoes da mesma letra (3+), tokens com < 3 caracteres."""
+        tokens = re.findall(r'\S+', text)
+        filtered = []
+        for token in tokens:
+            token_clean = token.strip().lower().strip('.,!?;:()[]{}"\'')
+            if not token_clean:
+                continue
+            # Remove @mencoes (nomes de usuario)
+            if token_clean.startswith('@'):
+                continue
+            # Remove URLs
+            if 'http' in token_clean:
+                continue
+            # Remove apenas digitos
+            if token_clean.isdigit():
+                continue
+            # Remove repeticoes da mesma letra ou padrao 3+ vezes (kkkk, aaaa, rsrsrs, huehuehue)
+            if re.match(r'^(.+?)\1{2,}$', token_clean):
+                continue
+            # Remove tokens com menos de 3 caracteres
+            if len(token_clean) < 3:
+                continue
+            filtered.append(token_clean)
+        return ' '.join(filtered)
+
     def extract(self, texts: list[str], top_n: int = 10) -> list[dict]:
         if not texts:
             return []
 
+        # Pré-processa cada texto removendo tokens irrelevantes
+        cleaned = [self._filter_tokens(t) for t in texts]
+        # Remove textos que ficaram vazios apos filtragem
+        cleaned = [t for t in cleaned if t.strip()]
+        if not cleaned:
+            return []
+
         # Se houver poucas mensagens, usa fallback de frequência simples
-        if len(texts) < 10:
-            return self._fallback_frequency(texts, top_n)
+        if len(cleaned) < 10:
+            return self._fallback_frequency(cleaned, top_n)
 
         try:
-            tfidf_matrix = self.vectorizer.fit_transform(texts)
+            tfidf_matrix = self.vectorizer.fit_transform(cleaned)
             feature_names = self.vectorizer.get_feature_names_out()
 
             # Soma os scores TF-IDF de cada termo em todos os documentos
@@ -57,7 +92,7 @@ class TfidfTopicExtractor(TopicExtractor):
             ]
         except ValueError:
             # Se o TF-IDF falhar (ex.: vocabulário vazio), usa fallback
-            return self._fallback_frequency(texts, top_n)
+            return self._fallback_frequency(cleaned, top_n)
 
     def _fallback_frequency(self, texts: list[str], top_n: int) -> list[dict]:
         """Fallback: frequência simples quando há poucos dados."""

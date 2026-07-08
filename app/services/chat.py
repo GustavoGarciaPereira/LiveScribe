@@ -342,10 +342,8 @@ class ChatService:
             from app.services.transcript import TranscriptService
             transcript = TranscriptService.get_transcript(video_id)
 
-        # Calcula o offset: diferença entre o timestamp da primeira mensagem
-        # e o início do vídeo (para alinhar transcrição com chat)
+        # Primeira mensagem como referência para elapsed time
         first_msg_time = to_local(messages[0].created_at)
-        live_start_offset = first_msg_time.timestamp() if transcript else 0
 
         result_topics = []
         for topic in topics:
@@ -369,33 +367,29 @@ class ChatService:
                 if emotions and any(emotions.values()):
                     dominant_emotion = max(emotions, key=emotions.get)
 
-            # Minuto de pico
-            peak_minute = None
-            minute_counts: dict[str, int] = {}
+            # Pico: bucket de 60s em segundos decorridos desde a primeira mensagem
+            peak_second = None
+            second_counts: dict[int, int] = {}
             for m in matching:
-                mk = to_local(m.created_at).strftime("%H:%M")
-                minute_counts[mk] = minute_counts.get(mk, 0) + 1
-            if minute_counts:
-                peak_minute = max(minute_counts, key=minute_counts.get)
+                elapsed = int((to_local(m.created_at) - first_msg_time).total_seconds())
+                bucket = (elapsed // 60) * 60  # bucket de 60s
+                second_counts[bucket] = second_counts.get(bucket, 0) + 1
+            if second_counts:
+                peak_second = max(second_counts, key=second_counts.get)
 
-            # Trecho transcrito no pico
+            # Trecho transcrito no pico (usando elapsed seconds diretamente)
             transcript_snippet = None
             peak_timestamp = None
-            if transcript and peak_minute:
-                # Converte HH:MM para segundos a partir do início da live
-                parts = peak_minute.split(":")
-                peak_seconds = int(parts[0]) * 60 + int(parts[1])
-                # Ajusta pelo offset da primeira mensagem
-                absolute_ts = live_start_offset + peak_seconds
-                transcript_snippet = TranscriptService.find_snippet_at(transcript, absolute_ts)
-                peak_timestamp = round(absolute_ts, 1)
+            if transcript and peak_second is not None:
+                transcript_snippet = TranscriptService.find_snippet_at(transcript, float(peak_second))
+                peak_timestamp = round(float(peak_second), 1)
 
             result_topics.append({
                 "topic": term,
                 "message_count": len(matching),
                 "sentiment": sentiments,
                 "dominant_emotion": dominant_emotion,
-                "peak_minute": peak_minute,
+                "peak_minute": None,
                 "transcript_snippet": transcript_snippet,
                 "peak_timestamp": peak_timestamp,
             })

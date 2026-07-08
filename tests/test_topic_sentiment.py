@@ -90,6 +90,72 @@ class TestTopicSentimentService:
         counts = [t["message_count"] for t in result["topics"]]
         assert counts == sorted(counts, reverse=True), f"Esperado decrescente, obtido {counts}"
 
+    def test_transcript_snippet_varies_per_topic(self, db_session, mock_analyzer):
+        """Topicos diferentes com picos em momentos diferentes tem snippets DIFERENTES."""
+        from unittest.mock import MagicMock, patch
+
+        mock_topics = MagicMock()
+        mock_topics.extract.return_value = [
+            {"term": "python", "score": 0.95},
+            {"term": "encerrar", "score": 0.72},
+        ]
+
+        mock_emotion = MagicMock()
+        mock_emotion.analyze.return_value = {"alegria": 1, "raiva": 0, "medo": 0, "surpresa": 0, "tristeza": 0, "nojo": 0}
+
+        svc = ChatService(
+            db_session, mock_analyzer, mock_topics,
+            emotion_analyzer=mock_emotion,
+        )
+
+        from app.models.message import Message
+        from datetime import datetime, timezone, timedelta
+
+        base = datetime.now(timezone.utc)
+        # Mensagens sobre "python" no inicio
+        msgs = [
+            Message(live_id="live-multi", author="A", message="Python legal", created_at=base),
+            Message(live_id="live-multi", author="B", message="Python demais", created_at=base + timedelta(seconds=5)),
+            Message(live_id="live-multi", author="C", message="Python show", created_at=base + timedelta(seconds=10)),
+            # Mensagens sobre "encerrar" no final (2 min depois)
+            Message(live_id="live-multi", author="D", message="Vou encerrar a live", created_at=base + timedelta(seconds=120)),
+            Message(live_id="live-multi", author="E", message="Hora de encerrar", created_at=base + timedelta(seconds=125)),
+        ]
+        for m in msgs:
+            db_session.add(m)
+        db_session.commit()
+
+        from app.services.transcript import TranscriptService
+        # Transcript com trecho inicial e final
+        FAKE_TRANSCRIPT_MULTI = [
+            {"text": "Introducao sobre Python", "start": 0.0, "duration": 10.0},
+            {"text": "codigo Python aqui", "start": 10.0, "duration": 5.0},
+            {"text": "encerrando a live agora", "start": 130.0, "duration": 5.0},
+            {"text": "ate a proxima", "start": 135.0, "duration": 5.0},
+        ]
+
+        TranscriptService.get_transcript.cache_clear()
+        with patch.object(TranscriptService, "get_transcript", return_value=FAKE_TRANSCRIPT_MULTI):
+            result = svc.topic_sentiment("live-multi", top_n=5, video_id="test-video-multi")
+
+        assert result is not None
+        assert len(result["topics"]) >= 2
+
+        # Encontra cada topico
+        py_topic = next(t for t in result["topics"] if t["topic"] == "python")
+        end_topic = next(t for t in result["topics"] if t["topic"] == "encerrar")
+
+        # Ambos devem ter transcript_snippet e devem ser diferentes
+        assert py_topic["transcript_snippet"] is not None, "Topico python sem snippet"
+        assert end_topic["transcript_snippet"] is not None, "Topico encerrar sem snippet"
+        assert py_topic["transcript_snippet"] != end_topic["transcript_snippet"], (
+            f"Snippets iguais: ambos '{py_topic['transcript_snippet']}'"
+        )
+        # O snippet do python deve mencionar Python (trecho inicial)
+        assert "Python" in py_topic["transcript_snippet"] or "python" in py_topic["transcript_snippet"]
+        # O snippet do encerrar deve mencionar encerramento (trecho final)
+        assert "encerrando" in end_topic["transcript_snippet"] or "proxima" in end_topic["transcript_snippet"]
+
 
 class TestTopicSentimentRoute:
     def test_returns_200_with_data(self, auth_client):

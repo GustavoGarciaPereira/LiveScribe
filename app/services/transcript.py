@@ -46,8 +46,9 @@ class TranscriptService:
         """Encontra o trecho transcrito mais próximo de um timestamp.
 
         Retorna uma janela de ~30s ao redor do ponto, concatenando trechos adjacentes.
+        Retorna None se transcript for vazio ou timestamp_seconds for None.
         """
-        if not transcript:
+        if not transcript or timestamp_seconds is None:
             return None
 
         # Encontra o trecho mais próximo do timestamp

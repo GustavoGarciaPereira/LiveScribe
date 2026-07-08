@@ -45,6 +45,22 @@ class TestTranscriptService:
         """find_snippet_at retorna None para lista vazia."""
         assert TranscriptService.find_snippet_at([], 10.0) is None
 
+    def test_find_snippet_at_none_timestamp(self):
+        """find_snippet_at retorna None para timestamp_seconds None."""
+        assert TranscriptService.find_snippet_at(FAKE_TRANSCRIPT, None) is None
+
+    def test_find_snippet_at_varied_timestamps(self):
+        """find_snippet_at retorna snippets DIFERENTES para timestamps diferentes."""
+        snippet_early = TranscriptService.find_snippet_at(FAKE_TRANSCRIPT, 3.0, context_radius=2.0)
+        snippet_late = TranscriptService.find_snippet_at(FAKE_TRANSCRIPT, 121.0, context_radius=2.0)
+
+        assert snippet_early is not None
+        assert snippet_late is not None
+        # Trechos iniciais vs finais devem ser diferentes
+        assert snippet_early != snippet_late, f"Esperado snippets diferentes, ambos: {snippet_early}"
+        assert "pessoal" in snippet_early or "bem vindos" in snippet_early
+        assert "obrigado" in snippet_late or "proxima" in snippet_late
+
 
 class TestTopicSentimentWithTranscript:
     def test_topic_sentiment_with_video_id_enriches_response(self, db_session, mock_analyzer):
