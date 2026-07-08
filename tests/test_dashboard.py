@@ -60,3 +60,9 @@ class TestDashboard:
         assert "loadSentimentSummary" in html
         assert "renderSentimentStats" in html
         assert "significant_change" in html
+
+    def test_contains_get_headers_function(self, client):
+        """getHeaders precisa estar declarada no escopo global antes de ser usada."""
+        response = client.get("/dashboard")
+        html = response.text
+        assert "function getHeaders" in html

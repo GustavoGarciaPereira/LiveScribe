@@ -1,7 +1,9 @@
 """Testes para o sistema de relatorios com fila e polling."""
 
+import json
 import time
 import pytest
+from app.repositories.messages import create_message
 from app.services.chat import ChatService
 from app.services.report import ReportService
 from app.services.report_queue import ReportQueue
@@ -38,6 +40,49 @@ class TestReportService:
         assert pdf_bytes is not None
         assert isinstance(pdf_bytes, bytes)
         assert pdf_bytes.startswith(b"%PDF-")
+
+    def test_total_intervals_is_int_not_json_string_length(self, db_session, mock_analyzer, monkeypatch):
+        """Reproduz o bug em que sentiment_timeline chegava como string JSON,
+        fazendo `total_intervals` contar caracteres (ex: 2108) em vez de buckets."""
+        create_message(db_session, live_id="live-str", author="u1", content="oi", platform="youtube")
+        svc = ChatService(db_session, mock_analyzer)
+
+        timeline_payload = {
+            "live_id": "live-str",
+            "interval_minutes": 5,
+            "timeline": [
+                {
+                    "start_time": "2024-01-01T18:00", "end_time": "2024-01-01T18:05",
+                    "total_messages": 1, "sentiments": {"Positivo": 0, "Negativo": 0, "Neutro": 1},
+                    "statistics": None, "significant_change": False, "p_value": None,
+                    "change_direction": "none", "change_magnitude": None,
+                },
+                {
+                    "start_time": "2024-01-01T18:05", "end_time": "2024-01-01T18:10",
+                    "total_messages": 1, "sentiments": {"Positivo": 0, "Negativo": 1, "Neutro": 0},
+                    "statistics": None, "significant_change": True, "p_value": 0.01,
+                    "change_direction": "drop", "change_magnitude": -0.4,
+                },
+            ],
+        }
+        monkeypatch.setattr(svc, "sentiment_timeline", lambda *a, **k: json.dumps(timeline_payload))
+
+        captured = {}
+        import app.templates.report_html as rh
+        orig_render = rh.report_html.render
+        def spy_render(context):
+            captured["ctx"] = context
+            return orig_render(context)
+        monkeypatch.setattr(rh.report_html, "render", spy_render)
+
+        report_svc = ReportService(svc)
+        pdf_bytes = report_svc.generate_pdf("live-str", user_id=None)
+
+        assert isinstance(pdf_bytes, bytes)
+        assert isinstance(captured["ctx"]["total_intervals"], int)
+        assert isinstance(captured["ctx"]["sentiment_timeline"], list)
+        assert captured["ctx"]["total_intervals"] == 2
+        assert captured["ctx"]["total_intervals"] < 100
 
 
 def test_report_template_has_statistics_columns():

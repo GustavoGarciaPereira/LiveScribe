@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 from collections import Counter
 from datetime import datetime
 
@@ -33,6 +34,13 @@ class ReportService:
         emotions = self.chat_service.emotion_timeline(live_id, interval_minutes=1, user_id=user_id)
         emojis = self.chat_service.emoji_analysis(live_id, top_n=20, user_id=user_id)
         sentiment_timeline = self.chat_service.sentiment_timeline(live_id, interval_minutes=5, user_id=user_id)
+        # Garantir que sentiment_timeline seja dict (pode vir como JSON string em alguns setups)
+        if isinstance(sentiment_timeline, str):
+            sentiment_timeline = json.loads(sentiment_timeline)
+
+        timeline = sentiment_timeline.get("timeline", []) if sentiment_timeline else []
+        if not isinstance(timeline, list):
+            timeline = []
 
         total_messages = len(messages)
         unique_authors = len(set(m.author for m in messages)) if messages else 0
@@ -64,8 +72,8 @@ class ReportService:
             "authors": authors.get("authors", []) if authors else [],
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
-            "sentiment_timeline": sentiment_timeline.get("timeline", []) if sentiment_timeline else [],
-            "total_intervals": len(sentiment_timeline.get("timeline", [])) if sentiment_timeline else 0,
+            "sentiment_timeline": timeline,
+            "total_intervals": len(timeline),
             "charts": charts,
             "generated_at": now_local().strftime("%d/%m/%Y %H:%M BRT"),
         }

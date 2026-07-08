@@ -157,6 +157,11 @@
 <script>
 const API = '/api/chat';
 
+function getHeaders() {
+    const token = localStorage.getItem('token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart;
 
 let livesData = [];
@@ -869,11 +874,6 @@ const dataSection = document.getElementById('data-section');
 const loginForm = document.getElementById('login-form');
 const userInfo = document.getElementById('user-info');
 const displayEmail = document.getElementById('display-email');
-
-function getHeaders() {
-    const token = localStorage.getItem('token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
 
 function checkAuthState() {
     const token = localStorage.getItem('token');
