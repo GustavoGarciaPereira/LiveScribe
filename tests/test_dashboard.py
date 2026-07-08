@@ -59,3 +59,4 @@ class TestDashboard:
         assert "sentiment-stats" in html
         assert "loadSentimentSummary" in html
         assert "renderSentimentStats" in html
+        assert "significant_change" in html

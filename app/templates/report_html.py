@@ -134,6 +134,32 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 <img class="chart" src="data:image/png;base64,{{ charts.peaks }}" alt="Engajamento">
 {% endif %}
 
+<h3>Momentos de Virada Significativa</h3>
+{% if sentiment_timeline %}
+  {% set sig_buckets = sentiment_timeline | selectattr("significant_change", "equalto", True) | list %}
+  {% if sig_buckets | length > 0 %}
+  <table>
+    <tr><th>Horario</th><th>Direcao</th><th>p-valor</th><th>Magnitude</th></tr>
+    {% for b in sig_buckets %}
+    <tr>
+      <td>{{ b.start_time[:16] if b.start_time is string else b.start_time.strftime('%H:%M') }}</td>
+      <td>{% if b.change_direction == 'rise' %}<span style="color:#16a34a;">Subida</span>{% elif b.change_direction == 'drop' %}<span style="color:#dc2626;">Queda</span>{% else %}Estavel{% endif %}</td>
+      <td>{{ b.p_value }}</td>
+      <td>{{ '%+.2f' | format(b.change_magnitude) if b.change_magnitude is not none else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% set total = sentiment_timeline | length %}
+  {% set sig_count = sig_buckets | length %}
+  {% set non_sig = total - sig_count %}
+  <p style="font-size:9pt;color:#475569;margin-top:0.2cm;">Dos {{ total }} intervalos analisados, {{ sig_count }} apresentaram mudancas estatisticamente significativas (p &lt; 0.05). As demais flutuacoes podem ser atribuidas ao acaso.</p>
+  {% else %}
+  <p class="empty-msg">Nenhuma mudanca estatisticamente significativa foi detectada entre os intervalos analisados.</p>
+  {% endif %}
+{% else %}
+<p class="empty-msg">Nenhum dado de timeline disponivel.</p>
+{% endif %}
+
 <h3>Top Autores</h3>
 {% if authors %}
 <table>

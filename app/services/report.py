@@ -32,6 +32,7 @@ class ReportService:
         modality = self.chat_service.modality_timeline(live_id, interval_minutes=5, user_id=user_id)
         emotions = self.chat_service.emotion_timeline(live_id, interval_minutes=1, user_id=user_id)
         emojis = self.chat_service.emoji_analysis(live_id, top_n=20, user_id=user_id)
+        sentiment_timeline = self.chat_service.sentiment_timeline(live_id, interval_minutes=5, user_id=user_id)
 
         total_messages = len(messages)
         unique_authors = len(set(m.author for m in messages)) if messages else 0
@@ -63,6 +64,7 @@ class ReportService:
             "authors": authors.get("authors", []) if authors else [],
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
+            "sentiment_timeline": sentiment_timeline.get("timeline", []) if sentiment_timeline else [],
             "charts": charts,
             "generated_at": now_local().strftime("%d/%m/%Y %H:%M BRT"),
         }

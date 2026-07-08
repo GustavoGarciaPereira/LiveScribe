@@ -276,11 +276,51 @@ function renderTimeline() {
     const colors = { Positivo: '#22c55e', Negativo: '#ef4444', Neutro: '#94a3b8' };
     for (const [name, color] of Object.entries(colors)) {
         if (currentFilters.sentiment !== 'Todos' && currentFilters.sentiment !== name) continue;
-        datasets.push({ label: name, data: filtered.map(b => b.sentiments[name]), borderColor: color, fill: false });
+        const values = filtered.map(b => b.sentiments[name]);
+        // Marcadores nos pontos com mudanca significativa
+        const pointBg = filtered.map(b => {
+            if (!b.significant_change) return color;
+            if (b.change_direction === 'rise') return '#4ade80';
+            if (b.change_direction === 'drop') return '#f87171';
+            return color;
+        });
+        const pointRadius = filtered.map(b => b.significant_change ? 7 : 3);
+        const pointBorderColor = filtered.map(b => {
+            if (!b.significant_change) return color;
+            if (b.change_direction === 'rise') return '#16a34a';
+            if (b.change_direction === 'drop') return '#dc2626';
+            return '#94a3b8';
+        });
+        const pointBorderWidth = filtered.map(b => b.significant_change ? 3 : 1);
+        datasets.push({
+            label: name,
+            data: values,
+            borderColor: color,
+            fill: false,
+            pointBackgroundColor: pointBg,
+            pointRadius: pointRadius,
+            pointBorderColor: pointBorderColor,
+            pointBorderWidth: pointBorderWidth,
+            pointHoverRadius: filtered.map(b => b.significant_change ? 10 : 5),
+        });
     }
     if (timelineChart) timelineChart.destroy();
     timelineChart = new Chart(document.getElementById('timeline-chart'), {
-        type: 'line', data: { labels, datasets }, options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        type: 'line', data: { labels, datasets }, options: {
+            responsive: true, scales: { y: { beginAtZero: true } },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(ctx) {
+                            const b = filtered[ctx.dataIndex];
+                            if (!b || !b.significant_change) return '';
+                            const dir = b.change_direction === 'rise' ? 'subida' : b.change_direction === 'drop' ? 'queda' : 'estavel';
+                            return 'Mudanca significativa (p=' + b.p_value + ') — ' + dir + ' de ' + b.change_magnitude + ' pontos';
+                        }
+                    }
+                }
+            }
+        }
     });
 }
 

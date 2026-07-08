@@ -63,6 +63,27 @@ def test_report_template_has_statistics_columns():
     assert "0.70" in source  # ci_95 upper
 
 
+def test_report_template_has_significance_section():
+    """O template do relatorio contem seção Momentos de Virada Significativa."""
+    from app.templates.report_html import report_html
+    source = report_html.render({
+        "live_id": "test", "total_messages": 10, "unique_authors": 3,
+        "first_msg": "", "last_msg": "", "duration": "00:30:00",
+        "sentiment_summary": {}, "word_freq": [], "topics": [],
+        "topic_sentiment": [], "authors": [], "questions": [], "emojis": [],
+        "sentiment_timeline": [
+            {"start_time": "2024-01-01T18:00", "significant_change": False, "p_value": None, "change_direction": "none", "change_magnitude": None},
+            {"start_time": "2024-01-01T18:05", "significant_change": True, "p_value": 0.003, "change_direction": "drop", "change_magnitude": -0.5},
+            {"start_time": "2024-01-01T18:10", "significant_change": True, "p_value": 0.012, "change_direction": "rise", "change_magnitude": 0.35},
+        ],
+        "charts": {}, "generated_at": "",
+    })
+    assert "Momentos de Virada Significativa" in source
+    assert "mudancas estatisticamente significativas" in source
+    assert "0.003" in source
+    assert "0.012" in source
+
+
 class TestReportRoutes:
     def test_create_report_requires_auth(self, client):
         resp = client.post("/api/reports?live_id=test-live")
