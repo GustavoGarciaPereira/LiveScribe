@@ -41,4 +41,4 @@ matplotlib
 
 
 
-# tótipo em função do tempo
+# tótipo em função do temposcipy

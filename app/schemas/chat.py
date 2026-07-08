@@ -65,6 +65,10 @@ class TimelineBucket(BaseModel):
     total_messages: int
     sentiments: dict[str, int]
     statistics: SentimentStatistics | None = None
+    significant_change: bool = False
+    p_value: float | None = None
+    change_direction: str | None = "none"
+    change_magnitude: float | None = None
 
 
 class SentimentTimelineResponse(BaseModel):

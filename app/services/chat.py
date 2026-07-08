@@ -140,6 +140,7 @@ class ChatService:
         buckets = self._bucket_messages(messages, interval_minutes)
 
         timeline = []
+        bucket_compounds: list[list[float]] = []
         for bucket in buckets:
             texts = [m.message for m in bucket["msgs"]]
             sentiments = self.sentiment_analyzer.analyze(texts) if texts else {"Positivo": 0, "Negativo": 0, "Neutro": 0}
@@ -152,6 +153,44 @@ class ChatService:
                 "sentiments": sentiments,
                 "statistics": bucket_stats,
             })
+            bucket_compounds.append(compounds)
+
+        from scipy.stats import ttest_ind
+
+        for i, entry in enumerate(timeline):
+            if i == 0:
+                entry["significant_change"] = False
+                entry["p_value"] = None
+                entry["change_direction"] = "none"
+                entry["change_magnitude"] = None
+                continue
+
+            prev = bucket_compounds[i - 1]
+            curr = bucket_compounds[i]
+
+            if len(prev) < 2 or len(curr) < 2:
+                entry["significant_change"] = False
+                entry["p_value"] = None
+                entry["change_direction"] = "none"
+                entry["change_magnitude"] = None
+                continue
+
+            stat, p_val = ttest_ind(prev, curr, equal_var=False)
+            p_value = float(round(p_val, 6))
+            entry["p_value"] = p_value
+            entry["significant_change"] = bool(p_value < 0.05)
+
+            prev_mean = sum(prev) / len(prev)
+            curr_mean = sum(curr) / len(curr)
+            magnitude = float(round(curr_mean - prev_mean, 4))
+            entry["change_magnitude"] = magnitude
+
+            if magnitude > 0.05:
+                entry["change_direction"] = "rise"
+            elif magnitude < -0.05:
+                entry["change_direction"] = "drop"
+            else:
+                entry["change_direction"] = "stable"
 
         return {
             "live_id": live_id,

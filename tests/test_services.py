@@ -186,6 +186,97 @@ def test_sentiment_timeline_empty(db_session, mock_analyzer, mock_topic_extracto
     assert result is None
 
 
+def test_sentiment_timeline_significance_first_bucket(db_session, mock_analyzer):
+    """Primeiro bucket tem significant_change=False e change_direction='none'."""
+    from unittest.mock import MagicMock
+    mock = MagicMock()
+    mock.analyze.return_value = {"Positivo": 3, "Negativo": 0, "Neutro": 0}
+    mock.analyze_with_compound.return_value = ({"Positivo": 3, "Negativo": 0, "Neutro": 0}, [0.5, 0.6, 0.7])
+
+    from datetime import datetime, timezone, timedelta
+    from app.models.message import Message
+
+    svc = ChatService(db_session, mock)
+    base = datetime.now(timezone.utc)
+    for i in range(3):
+        db_session.add(Message(live_id="live-sig", author="A", message="Bom demais", created_at=base + timedelta(seconds=i)))
+    db_session.commit()
+
+    result = svc.sentiment_timeline("live-sig", interval_minutes=5)
+    assert result is not None
+    first = result["timeline"][0]
+    assert first["significant_change"] is False
+    assert first["p_value"] is None
+    assert first["change_direction"] == "none"
+    assert first["change_magnitude"] is None
+
+
+def test_sentiment_timeline_significance_rise(db_session, mock_analyzer):
+    """Dois buckets com medias diferentes devem detectar mudanca significativa."""
+    from unittest.mock import MagicMock
+
+    # Mock que retorna compounds diferentes para cada chamada
+    mock = MagicMock()
+    mock.analyze.return_value = {"Positivo": 3, "Negativo": 0, "Neutro": 0}
+
+    call_count = [0]
+    def analyze_with_compound_side_effect(texts):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return {"Positivo": 3, "Negativo": 0, "Neutro": 0}, [-0.5, -0.4, -0.6]
+        return {"Positivo": 3, "Negativo": 0, "Neutro": 0}, [0.8, 0.7, 0.9]
+
+    mock.analyze_with_compound.side_effect = analyze_with_compound_side_effect
+
+    from datetime import datetime, timezone, timedelta
+    from app.models.message import Message
+
+    svc = ChatService(db_session, mock)
+    base = datetime.now(timezone.utc)
+    # Bucket 1: mensagens negativas (primeiros 30 segundos)
+    for i in range(3):
+        db_session.add(Message(live_id="live-rise", author="A", message="Muito ruim", created_at=base + timedelta(seconds=i)))
+    # Bucket 2: mensagens positivas (5+ minutos depois)
+    for i in range(3):
+        db_session.add(Message(live_id="live-rise", author="A", message="Muito bom", created_at=base + timedelta(seconds=300 + i)))
+    db_session.commit()
+
+    result = svc.sentiment_timeline("live-rise", interval_minutes=5)
+    assert result is not None
+    assert len(result["timeline"]) >= 2
+    second = result["timeline"][1]
+    assert second["significant_change"] is True, f"Esperado True, obtido {second}"
+    assert second["p_value"] is not None and second["p_value"] < 0.05
+    assert second["change_direction"] == "rise"
+
+
+def test_sentiment_timeline_significance_stable(db_session, mock_analyzer):
+    """Dois buckets com medias similares devem ser 'stable'."""
+    from unittest.mock import MagicMock
+
+    mock = MagicMock()
+    mock.analyze.return_value = {"Positivo": 3, "Negativo": 0, "Neutro": 0}
+    mock.analyze_with_compound.return_value = ({"Positivo": 3, "Negativo": 0, "Neutro": 0}, [0.1, 0.12, 0.11])
+
+    from datetime import datetime, timezone, timedelta
+    from app.models.message import Message
+
+    svc = ChatService(db_session, mock)
+    base = datetime.now(timezone.utc)
+    for i in range(3):
+        db_session.add(Message(live_id="live-stable", author="A", message="Tanto faz", created_at=base + timedelta(seconds=i)))
+    for i in range(3):
+        db_session.add(Message(live_id="live-stable", author="A", message="Tanto faz 2", created_at=base + timedelta(seconds=300 + i)))
+    db_session.commit()
+
+    result = svc.sentiment_timeline("live-stable", interval_minutes=5)
+    assert result is not None
+    assert len(result["timeline"]) >= 2
+    second = result["timeline"][1]
+    assert second["significant_change"] is False
+    assert second["change_direction"] == "stable"
+
+
 def test_engagement_peaks(db_session, mock_analyzer, mock_topic_extractor):
     svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
     svc.save_message("live1", "A", "msg1")
