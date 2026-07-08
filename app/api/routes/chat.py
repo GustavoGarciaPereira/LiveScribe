@@ -91,6 +91,7 @@ def sentiment_analysis(
         live_id=live_id,
         total_messages_analyzed=summary["total_messages"],
         sentiment_summary=summary["sentiments"],
+        statistics=summary.get("statistics"),
         library_used="Hugging Face Transformers",
         model=summary["model"],
     )
