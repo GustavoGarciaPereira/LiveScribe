@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import inspect, text
 
 from app.api.routes.auth import router as auth_router
@@ -109,6 +109,11 @@ def create_application() -> FastAPI:
     async def landing():
         landing_html = (Path(__file__).parent / "templates" / "landing.html").read_text(encoding="utf-8")
         return landing_html
+
+    @app.get("/favicon.ico", response_class=HTMLResponse)
+    async def favicon():
+        svg = (Path(__file__).parent / "templates" / "favicon.svg").read_text(encoding="utf-8")
+        return Response(content=svg, media_type="image/svg+xml")
 
     @app.get("/", tags=["healthcheck"])
     async def healthcheck():
