@@ -15,8 +15,14 @@ class Settings(BaseSettings):
     REDOC_URL: str | None = "/redoc"
     OPENAPI_URL: str | None = "/openapi.json"
 
-    CORS_ALLOW_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
-    CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_ALLOW_ORIGINS: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "http://localhost:5173",   # Vite / frontend dev
+        ]
+    )
+    CORS_ALLOW_CREDENTIALS: bool = False
     CORS_ALLOW_METHODS: list[str] = Field(default_factory=lambda: ["*"])
     CORS_ALLOW_HEADERS: list[str] = Field(default_factory=lambda: ["*"])
 
@@ -30,14 +36,24 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/callback/google"
 
     @model_validator(mode="after")
-    def _validate_secret_key_in_production(self):
-        if self.ENVIRONMENT == "production" and self.SECRET_KEY == "change-me-in-production":
-            raise ValueError(
-                "SECRET_KEY must be set to a secure value in production. "
-                "Do not use the default 'change-me-in-production'."
-            )
+    def _validate_secret_key(self):
+        """Exige SECRET_KEY segura em qualquer ambiente que não seja dev local."""
+        if self.SECRET_KEY == "change-me-in-production":
+            if self.ENVIRONMENT == "development":
+                import warnings
+                warnings.warn(
+                    "SECRET_KEY está com o valor padrão. Defina SECRET_KEY no .env "
+                    "antes de qualquer deploy.",
+                    stacklevel=2,
+                )
+            else:
+                raise ValueError(
+                    "SECRET_KEY deve ser configurado com um valor seguro. "
+                    "Defina a variável SECRET_KEY no .env ou no ambiente."
+                )
         return self
 
 

@@ -11,13 +11,15 @@
 ```
 app/
 ├── api/
-│   ├── deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor + RegexEmojiExtractor), get_current_user, get_current_user_optional_v2
+│   ├── deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor + RegexEmojiExtractor), get_current_user, get_report_queue
 │   └── routes/
-│       ├── auth.py          -> register, login, login/google, callback/google, /me
-│       ├── chat.py          -> 12 endpoints de analise + export
+│       ├── auth.py          -> register, login, login/google, callback/google, logout, /me
+│       ├── chat.py          -> 16 endpoints de analise + export
+│       ├── reports.py       -> 3 endpoints de relatorio PDF (create, status, download)
 │       └── webhooks.py      -> CRUD de webhooks (create, list, delete)
 ├── core/
 │   ├── config.py            -> Configuracoes do .env (pydantic-settings)
+│   ├── limiter.py           -> Limiter compartilhado do slowapi (rate limiting)
 │   ├── stopwords.py         -> ~220 stopwords em portugues (incluindo girias e abreviacoes de chat)
 │   ├── emoji_sentiment.py   -> Mapeamento de 50 emojis para sentimento (Positivo/Negativo/Neutro)
 │   ├── emotion_lexicon.py   -> Lexico de 6 emocoes (alegria, raiva, medo, surpresa, tristeza, nojo)
@@ -89,11 +91,13 @@ tests/
 - **Sentimento desacoplado:** Interface `SentimentAnalyzer` (ABC) permite trocar o analisador sem mexer no ChatService. Implementacao atual: LeiaSentimentAnalyzer (VADER adaptado para portugues).
 - **Topicos desacoplados:** Interface `TopicExtractor` (ABC) + `TfidfTopicExtractor` (sklearn), mesmo padrao do SentimentAnalyzer.
 - **Emojis desacoplados:** Interface `EmojiExtractor` (ABC) + `RegexEmojiExtractor` (regex Extended_Pictographic), injetado no ChatService.
-- **Autenticacao JWT:** python-jose, tokens de 24h, providers local (bcrypt) e Google OAuth2. Rotas GET protegidas com `get_current_user`, POST /messages com `get_current_user_optional_v2`.
-- **Filtro por user_id:** Todas as queries de leitura filtram por `user_id` (com fallback para NULL para mensagens legadas da extensao nao logada).
+- **Autenticacao JWT:** python-jose, tokens de 24h, providers local (bcrypt) e Google OAuth2. Token armazenado em **cookie HttpOnly** (`access_token`) — nao em localStorage. Rotas GET/POST protegidas com `get_current_user`. Logout via `POST /api/auth/logout` (deleta cookie).
+- **Rate limiting:** slowapi com limites por endpoint (5/min auth, 120/min messages, 3/min reports, 10/min webhooks). Limiter compartilhado em `app/core/limiter.py`.
+- **Seguranca:** CORS restrito a origens explicitas; XSS mitigado com `escapeHtml()` no dashboard; SSRF mitigado com validacao de URL de webhook (bloqueio de IPs internos); SECRET_KEY validado em todos os ambientes; parametros com bounds via `Query(ge=1, le=...)`; erros 500 retornam mensagem generica + log; webhooks e relatorios isolados por `user_id`.
+- **Filtro por user_id:** Todas as queries de leitura e escrita filtram por `user_id`. Webhooks e reports verificam ownership do job/recurso.
 - **Platform:** Coluna `platform VARCHAR(50) DEFAULT 'youtube'`. Extensao envia `"platform": "youtube"`. Migracao automatica no lifespan.
 - **Banco:** SQLite em `data/app.db`. Tabelas: `messages` (id, live_id, author, message, platform, user_id, created_at), `users` (email, name, google_id, password_hash, provider, is_active), `webhooks` (url, event, user_id, is_active).
-- **Extensao:** Observa o iframe `#chatframe` do YouTube via MutationObserver. Posta em `http://127.0.0.1:8000/api/chat/messages` com token JWT opcional.
+- **Extensao:** Observa o iframe `#chatframe` do YouTube via MutationObserver. Posta em `http://127.0.0.1:8000/api/chat/messages` com token JWT (cookie HttpOnly). Login via popup.
 - **Type hints modernos:** Python 3.10+ sintaxe (`list[X]`, `X | None`, `dict[K,V]`).
 - **Regex para emojis:** `\p{Extended_Pictographic}` no modulo `regex` — evita capturar digitos (0-9) que o `\p{Emoji}` incluiria.
 - **Estatisticas de sentimento:** Media, desvio padrao e IC 95% calculados a partir dos compound scores do LeIA via `_compute_statistics`. Usa `1.96 * std/sqrt(n)` para o IC. Se `n < 2`, retorna `null` para `std_dev` e `ci_95`. Exposto via `analyze_with_compound()` no LeiaSentimentAnalyzer.
@@ -107,13 +111,14 @@ tests/
 | GET | /landing | — | Landing page de vendas |
 | GET | /favicon.ico | — | Favicon SVG |
 | **Auth** |
-| POST | /api/auth/register | — | Registrar conta local |
-| POST | /api/auth/login | — | Login email/senha → JWT |
+| POST | /api/auth/register | — | Registrar conta local → cookie HttpOnly |
+| POST | /api/auth/login | — | Login email/senha → cookie HttpOnly |
+| POST | /api/auth/logout | — | Deleta cookie de autenticacao |
 | GET | /api/auth/login/google | — | Redirect Google OAuth2 |
-| GET | /api/auth/callback/google | — | Callback Google → JWT |
+| GET | /api/auth/callback/google | — | Callback Google → cookie HttpOnly |
 | GET | /api/auth/me | 🔒 | Perfil do usuario |
 | **Chat** |
-| POST | /api/chat/messages | opcional | Salvar mensagem do chat |
+| POST | /api/chat/messages | 🔒 | Salvar mensagem do chat |
 | GET | /api/chat/lives | 🔒 | Lista lives do usuario |
 | GET | /api/chat/{live_id}/word-frequency | 🔒 | Top-N palavras (com filtro de URLs e digitos) |
 | GET | /api/chat/{live_id}/sentiment | 🔒 | Analise de sentimentos com media e IC 95% |
@@ -201,6 +206,25 @@ tests/
 17. **Colunas no relatorio PDF** — Media e IC 95% adicionados a tabela de Sentimento por Topico
 18. **147+ testes, 89% de cobertura**
 
+### Fase 6 — Seguranca (revisao completa)
+1. **CORS restrito** — `allow_origins` com lista explicita (localhost:8000, 127.0.0.1:8000, localhost:5173), `allow_credentials=False`
+2. **XSS mitigado** — funcao `escapeHtml()` em todos os renders `innerHTML` do dashboard (live_id, author, topic, transcript_snippet, questions, errors)
+3. **SSRF mitigado** — `validate_webhook_url` bloqueia schemes nao-http e IPs privados/reservados (RFC 1918, loopback, link-local, CGNAT) com resolucao DNS
+4. **SECRET_KEY seguro** — validador rejeita valor padrao em qualquer ambiente nao-dev; lido dinamicamente nas funcoes (nao em import-time)
+5. **Google OAuth config** — `redirect_uri` movido para `settings.GOOGLE_REDIRECT_URI` (nao hardcoded)
+6. **Rate limiting** — slowapi com `@limiter.limit` em todos os endpoints de escrita: auth (5/min), messages (120/min), reports (3/min), webhooks (10/min); `Limiter` compartilhado em `app/core/limiter.py`
+7. **JWT em cookie HttpOnly** — token `access_token` setado como cookie (`httponly=True, samesite=lax, secure=production`); dashboard usa cookie automatico, sem localStorage; endpoint `POST /api/auth/logout` deleta cookie
+8. **POST /messages requer auth** — `get_current_user` substitui `get_current_user_optional_v2`; todo usuario vinculado a `user_id`
+9. **Webhooks isolados por user_id** — `trigger_webhooks` recebe `user_id` e filtra webhooks do dono do recurso
+10. **Relatorios isolados por user_id** — `get_status`/`get_pdf` verificam `job.user_id == user.id`
+11. **Header injection mitigado** — `urllib.parse.quote(live_id)` no `Content-Disposition` do export (previne CRLF injection)
+12. **Erros internos genericos** — excecoes 500 retornam mensagem generica + `logger.error()` no servidor
+13. **Parametros com bounds** — `top_n`, `interval_minutes`, `window_minutes`, `min_length` usam `Query(ge=1, le=...)`
+14. **Cleanup de jobs** — `_cleanup_old_jobs()` remove reports concluidos/failed ha >1h (previne memory leak)
+15. **OAuth Google vincula contas** — callback verifica email existente e vincula `google_id` em vez de falhar com duplicata
+16. **Chart.js com SRI** — `integrity="sha384-..."` + `crossorigin="anonymous"` no CDN
+17. **154 testes, 91% de cobertura**
+
 ## Comandos uteis
 
 ```bash
@@ -210,9 +234,10 @@ uvicorn app.main:app --reload
 # Instalar dependencias
 pip install -r requirements.txt
 
-# Testar endpoints
-curl -X POST http://127.0.0.1:8000/api/chat/messages -H "Content-Type: application/json" -d '{"author":"Test","message":"Boa noite","live_id":"test"}'
-curl http://127.0.0.1:8000/api/chat/lives
+# Testar endpoints (com auth — substitua TOKEN por um JWT valido)
+TOKEN="xxx"
+curl -X POST http://127.0.0.1:8000/api/chat/messages -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"author":"Test","message":"Boa noite","live_id":"test"}'
+curl http://127.0.0.1:8000/api/chat/lives -H "Authorization: Bearer $TOKEN"
 curl http://127.0.0.1:8000/api/chat/test/emojis?top_n=20
 curl http://127.0.0.1:8000/api/chat/test/top-authors?top_n=10
 curl http://127.0.0.1:8000/api/chat/test/topic-timeline?term=gato

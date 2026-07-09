@@ -49,10 +49,24 @@ Captura e análise de discurso em tempo real de chats de **lives do YouTube**. C
 - Snippet contextual (~30s) no momento do pico de cada tópico
 
 ### Autenticação
-- JWT (HS256, 24h) com `python-jose`
-- Registro e login local (email + senha com bcrypt)
-- Google OAuth2 (httpx-oauth)
+- JWT (HS256, 24h) com `python-jose` armazenado em **cookie HttpOnly** (não em localStorage)
+- Registro e login local (email + senha com bcrypt) — seta cookie `access_token`
+- Logout via `POST /api/auth/logout` (deleta cookie)
+- Google OAuth2 (httpx-oauth) — vincula conta existente por email
 - Isolamento completo de dados por `user_id`
+- Rate limiting com `slowapi` (5/min em auth, 120/min em messages, 3/min em reports, 10/min em webhooks)
+
+### Segurança
+- **CORS restrito** a origins específicas (`localhost:8000`, `localhost:5173`), `allow_credentials=False`
+- **XSS mitigado** — `escapeHtml()` em todos os renders do dashboard; dados de chat não injetados diretamente no DOM
+- **SSRF mitigado** — validação de URL de webhook com blocklist de redes privadas (RFC 1918, loopback, link-local, CGNAT) + resolução DNS
+- **Webhooks isolados por usuário** — disparo filtra por `user_id`, sem cross-user data leak
+- **Relatórios isolados por usuário** — `get_status`/`get_pdf` verificam ownership do job
+- **Header injection mitigado** — `urllib.parse.quote()` no `Content-Disposition` do export
+- **Erros internos não vazam** — exceções 500 retornam mensagem genérica + log no servidor
+- **Parâmetros com bounds** — `top_n`, `interval_minutes`, `window_minutes` com `Query(ge=1, le=...)`
+- **SECRET_KEY validado** — rejeita valor padrão em produção; lido dinamicamente (não em import-time)
+- **Cleanup de jobs** — relatórios concluídos há >1h são removidos automaticamente
 
 ### Dashboard
 - HTML interativo com Chart.js
@@ -121,17 +135,18 @@ Acesse:
 
 | Método | Rota | Auth | Descrição |
 |--------|------|:----:|-----------|
-| `POST` | `/register` | ❌ | Cadastro local (email + senha) |
-| `POST` | `/login` | ❌ | Login local → JWT |
+| `POST` | `/register` | ❌ | Cadastro local (email + senha) → seta cookie HttpOnly |
+| `POST` | `/login` | ❌ | Login local → seta cookie HttpOnly |
+| `POST` | `/logout` | ❌ | Deleta cookie de autenticação |
 | `GET` | `/login/google` | ❌ | Redireciona para Google OAuth |
-| `GET` | `/callback/google` | ❌ | Callback Google → JWT |
+| `GET` | `/callback/google` | ❌ | Callback Google → seta cookie HttpOnly |
 | `GET` | `/me` | ✅ | Dados do usuário autenticado |
 
 ### Chat — prefixo `/api/chat`
 
 | Método | Rota | Auth | Descrição |
 |--------|------|:----:|-----------|
-| `POST` | `/messages` | Opcional | Salvar mensagem + disparar webhooks |
+| `POST` | `/messages` | ✅ | Salvar mensagem + disparar webhooks |
 | `GET` | `/lives` | ✅ | Listar lives do usuário |
 | `GET` | `/{live_id}/word-frequency` | ✅ | Top-N palavras mais frequentes |
 | `GET` | `/{live_id}/sentiment` | ✅ | Resumo de sentimentos (LeIA) |
@@ -265,7 +280,7 @@ app/
 pytest -v --cov=app --cov-report=term-missing
 ```
 
-**129 testes, 93%+ cobertura** — 17 arquivos de teste.
+**154 testes, 91%+ cobertura** — 17 arquivos de teste.
 
 | Arquivo | Foco |
 |---------|------|

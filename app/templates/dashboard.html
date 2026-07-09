@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PulsoDaLive — Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+    integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"
+    crossorigin="anonymous"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
@@ -158,8 +160,7 @@
 const API = '/api/chat';
 
 function getHeaders() {
-    const token = localStorage.getItem('token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    return {};
 }
 
 let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart;
@@ -177,6 +178,12 @@ function showEmpty(sectionId, show) {
     if (emptyEl) emptyEl.classList.toggle('hidden', !show);
     if (canvasEl) canvasEl.classList.toggle('hidden', show);
     if (listEl) listEl.classList.toggle('hidden', show);
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
 }
 
 function matchesTimeFilter(timeStr) {
@@ -201,7 +208,7 @@ function renderLiveOptions(filter) {
     const f = filter.toLowerCase();
     livesData.forEach(l => {
         if (f && !l.live_id.toLowerCase().includes(f)) return;
-        select.innerHTML += `<option value="${l.live_id}">${l.live_id} (${l.total_messages} msgs)</option>`;
+        select.innerHTML += `<option value="${escapeHtml(l.live_id)}">${escapeHtml(l.live_id)} (${l.total_messages} msgs)</option>`;
     });
     select.value = current;
 }
@@ -462,7 +469,7 @@ function renderEmojis() {
 
 async function loadTopAuthors(liveId) {
     try {
-        const res = await fetch(API + '/' + liveId + '/top-authors?top_n=10', { headers: getHeaders() });
+        const res = await fetch(API + '/' + liveId + '/top-authors?top_n=20', { headers: getHeaders() });
         const data = await res.json();
         cachedData.authors = data;
         renderAuthors();
@@ -481,7 +488,7 @@ function renderAuthors() {
     let html = '<table style="width:100%; border-collapse:collapse;"><tr style="color:#94a3b8;font-size:13px;"><th style="text-align:left;padding:4px;">Autor</th><th style="text-align:right;padding:4px;">Msgs</th><th style="text-align:right;padding:4px;">Sentimento</th></tr>';
     data.authors.forEach(a => {
         const color = a.avg_sentiment === 'Positivo' ? '#22c55e' : a.avg_sentiment === 'Negativo' ? '#ef4444' : '#94a3b8';
-        html += '<tr><td style="padding:4px;">' + a.author + '</td><td style="text-align:right;padding:4px;">' + a.messages + '</td><td style="text-align:right;padding:4px;color:' + color + ';">' + (a.avg_sentiment || 'Neutro') + '</td></tr>';
+        html += '<tr><td style="padding:4px;">' + escapeHtml(a.author) + '</td><td style="text-align:right;padding:4px;">' + a.messages + '</td><td style="text-align:right;padding:4px;color:' + color + ';">' + escapeHtml(a.avg_sentiment || 'Neutro') + '</td></tr>';
     });
     html += '</table>';
     list.innerHTML = html;
@@ -542,7 +549,7 @@ function renderTermTags() {
     const input = document.getElementById('term-tag-input');
     let html = '';
     activeTerms.forEach(t => {
-        html += '<span class="tag">' + t + '<span class="tag-remove" onclick="removeTermTag(\'' + t + '\')">&times;</span></span>';
+        html += '<span class="tag">' + escapeHtml(t) + '<span class="tag-remove" onclick="removeTermTag(\'' + t.replace(/'/g, '\\\'') + '\')">&times;</span></span>';
     });
     input.value = '';
     container.innerHTML = html;
@@ -587,7 +594,7 @@ function renderQuestions() {
     html += '<tr style="color:#94a3b8;font-size:13px;"><th style="text-align:left;padding:4px;">Pergunta</th><th style="text-align:right;padding:4px;">Mencoes</th></tr>';
     displayItems.forEach(q => {
         const examplesStr = q.examples.length > 1 ? ' (ex: ' + q.examples.slice(0,2).map(e => '"' + e + '"').join(', ') + ')' : '';
-        html += '<tr><td style="padding:4px;font-size:14px;">' + q.text + '<br><span style="font-size:11px;color:#64748b;">' + examplesStr + '</span></td><td style="text-align:right;padding:4px;">' + q.count + '</td></tr>';
+        html += '<tr><td style="padding:4px;font-size:14px;">' + escapeHtml(q.text) + '<br><span style="font-size:11px;color:#64748b;">' + escapeHtml(examplesStr) + '</span></td><td style="text-align:right;padding:4px;">' + q.count + '</td></tr>';
     });
     html += '</table>';
 
@@ -750,7 +757,7 @@ function renderTopicSentiment() {
     let detailHtml = '';
     data.topics.forEach(t => {
         if (t.transcript_snippet) {
-            detailHtml += '<div style="margin-bottom:0.3rem;"><strong>' + t.topic + '</strong> <span style="color:#64748b;">(' + t.peak_minute + ')</span>: ' + t.transcript_snippet + '</div>';
+            detailHtml += '<div style="margin-bottom:0.3rem;"><strong>' + escapeHtml(t.topic) + '</strong> <span style="color:#64748b;">(' + escapeHtml(t.peak_minute || '') + ')</span>: ' + escapeHtml(t.transcript_snippet) + '</div>';
         }
     });
     document.getElementById('topic-sentiment-detail').innerHTML = detailHtml;
@@ -842,22 +849,22 @@ async function requestPdfReport() {
                         URL.revokeObjectURL(url);
                         progressDiv.innerHTML = '<span style="color:#22c55e;">Relatório baixado com sucesso.</span>';
                     } catch (e) {
-                        progressDiv.innerHTML = '<span style="color:#ef4444;">Erro ao baixar: ' + e.message + '</span>';
+                        progressDiv.innerHTML = '<span style="color:#ef4444;">Erro ao baixar: ' + escapeHtml(e.message) + '</span>';
                     }
                     btn.disabled = false;
                 } else if (job.status === 'failed') {
                     clearInterval(pollInterval);
-                    progressDiv.innerHTML = '<span style="color:#ef4444;">Erro: ' + (job.error || 'falha desconhecida') + '</span>';
+                    progressDiv.innerHTML = '<span style="color:#ef4444;">Erro: ' + escapeHtml(job.error || 'falha desconhecida') + '</span>';
                     btn.disabled = false;
                 }
             } catch (e) {
                 clearInterval(pollInterval);
-                progressDiv.innerHTML = '<span style="color:#ef4444;">' + e.message + '</span>';
+                progressDiv.innerHTML = '<span style="color:#ef4444;">' + escapeHtml(e.message) + '</span>';
                 btn.disabled = false;
             }
         }, 2000);
     } catch (e) {
-        progressDiv.innerHTML = '<span style="color:#ef4444;">' + e.message + '</span>';
+        progressDiv.innerHTML = '<span style="color:#ef4444;">' + escapeHtml(e.message) + '</span>';
         btn.disabled = false;
     }
 }
@@ -878,25 +885,26 @@ const displayEmail = document.getElementById('display-email');
 // Fallback getHeaders para o caso de o primeiro script nao ter carregado
 if (typeof getHeaders === 'undefined') {
     function getHeaders() {
-        const token = localStorage.getItem('token');
-        return token ? { 'Authorization': `Bearer ${token}` } : {};
+        return {};
     }
 }
 
-function checkAuthState() {
-    const token = localStorage.getItem('token');
-    const email = localStorage.getItem('user_email');
-    if (token && email) {
-        loginForm.classList.add('hidden');
-        userInfo.classList.remove('hidden');
-        displayEmail.textContent = email;
-        dataSection.classList.remove('hidden');
-        loadLives();
-    } else {
-        loginForm.classList.remove('hidden');
-        userInfo.classList.add('hidden');
-        dataSection.classList.add('hidden');
-    }
+async function checkAuthState() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/auth/me`);
+        if (resp.ok) {
+            const user = await resp.json();
+            loginForm.classList.add('hidden');
+            userInfo.classList.remove('hidden');
+            displayEmail.textContent = user.email;
+            dataSection.classList.remove('hidden');
+            loadLives();
+            return;
+        }
+    } catch (e) {}
+    loginForm.classList.remove('hidden');
+    userInfo.classList.add('hidden');
+    dataSection.classList.add('hidden');
 }
 
 document.getElementById('login-btn').addEventListener('click', async () => {
@@ -911,16 +919,12 @@ document.getElementById('login-btn').addEventListener('click', async () => {
             body: JSON.stringify({ email, password })
         });
         if (!resp.ok) { const d = await resp.json(); throw new Error(d.detail || 'Falha no login'); }
-        const data = await resp.json();
-        localStorage.setItem('token', data.access_token);
-        localStorage.setItem('user_email', data.user.email);
         checkAuthState();
     } catch (e) { errorDiv.textContent = e.message; }
 });
 
-document.getElementById('logout-btn').addEventListener('click', () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_email');
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
     checkAuthState();
 });
 

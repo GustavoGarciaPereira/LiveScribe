@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,7 @@ from app.services.emojis import RegexEmojiExtractor
 from app.services.modality import LexiconModalityAnalyzer
 from app.services.emotion import LexiconEmotionAnalyzer
 
-security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 # ── Fila de relatórios (singleton) ────────────────────────────
 
@@ -68,44 +68,27 @@ def get_chat_service(db: Session = Depends(get_db)) -> ChatService:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
     db: Session = Depends(get_db),
 ):
+    """Autentica via Bearer header (extensão) ou HttpOnly cookie (dashboard)."""
+    token = None
+    if credentials:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autenticado")
+
     from app.models.user import User
     from app.services.auth import verify_token
 
-    user_id = verify_token(credentials.credentials)
+    user_id = verify_token(token)
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
     return user
-
-
-def get_current_user_optional(
-    db: Session = Depends(get_db),
-):
-    """Retorna o usuário autenticado ou None (para extensão Chrome sem token).
-    Tenta extrair o token do header Authorization, mas não falha se ausente."""
-    from fastapi import Request
-    # Não podemos acessar o request diretamente aqui como Depends
-    return None
-
-
-optional_security = HTTPBearer(auto_error=False)
-
-
-def get_current_user_optional_v2(
-    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
-    db: Session = Depends(get_db),
-):
-    """Retorna o usuário autenticado ou None (extensão Chrome sem token)."""
-    if credentials is None:
-        return None
-    from app.models.user import User
-    from app.services.auth import verify_token
-    user_id = verify_token(credentials.credentials)
-    if user_id is None:
-        return None
-    return db.query(User).filter(User.id == user_id).first()

@@ -9,8 +9,8 @@ class TestHealthcheck:
 
 
 class TestPostMessage:
-    def test_valid(self, client):
-        response = client.post(
+    def test_valid(self, client, auth_client):
+        response = auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "User", "message": "Teste"},
         )
@@ -21,15 +21,15 @@ class TestPostMessage:
         assert data["message"] == "Teste"
         assert data["id"] is not None
 
-    def test_missing_fields(self, client):
-        response = client.post(
+    def test_missing_fields(self, client, auth_client):
+        response = auth_client.post(
             "/api/chat/messages",
             json={"author": "User"},
         )
         assert response.status_code == 422  # validation error
 
-    def test_empty_body(self, client):
-        response = client.post("/api/chat/messages", json={})
+    def test_empty_body(self, client, auth_client):
+        response = auth_client.post("/api/chat/messages", json={})
         assert response.status_code == 422
 
 
@@ -103,8 +103,8 @@ class TestSentiment:
 
 
 class TestPlatform:
-    def test_default_platform(self, client):
-        response = client.post(
+    def test_default_platform(self, client, auth_client):
+        response = auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "Teste"},
         )
@@ -112,8 +112,8 @@ class TestPlatform:
         data = response.json()
         assert data["platform"] == "youtube"
 
-    def test_explicit_platform(self, client):
-        response = client.post(
+    def test_explicit_platform(self, client, auth_client):
+        response = auth_client.post(
             "/api/chat/messages",
             json={"live_id": "live1", "author": "A", "message": "Teste", "platform": "twitch"},
         )
@@ -273,7 +273,7 @@ class TestTopAuthors:
             json={"live_id": "live1", "author": "Ciclano", "message": "Soh uma"},
         )
 
-        response = auth_client.get("/api/chat/live1/top-authors?top_n=10")
+        response = auth_client.get("/api/chat/live1/top-authors?top_n=20")
         assert response.status_code == 200
         data = response.json()
         assert data["live_id"] == "live1"

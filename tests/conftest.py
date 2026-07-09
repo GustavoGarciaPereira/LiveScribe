@@ -10,9 +10,19 @@ from sqlalchemy.pool import StaticPool
 from app.infrastructure.database import Base
 from app.main import app
 from app.api.deps import get_db, get_chat_service, get_report_queue, init_report_queue
+from app.core.limiter import limiter
 from app.services.chat import ChatService
 from app.services.report_queue import ReportQueue
 from app.services.sentiment import LeiaSentimentAnalyzer
+
+
+# ── Reset do rate limiter entre testes ───────────────────────
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Reseta o storage do rate limiter antes de cada teste."""
+    limiter.reset()
+    yield
 
 
 # ── Banco em memória para testes ──────────────────────────────

@@ -6,9 +6,10 @@ Fluxo:
   GET  /api/reports/{job_id}/download → download do PDF
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 from app.api.deps import get_current_user, get_report_queue
+from app.core.limiter import limiter
 from app.models.user import User
 from app.services.report_queue import ReportQueue
 
@@ -16,7 +17,9 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 @router.post("")
+@limiter.limit("3/minute")
 def create_report(
+    request: Request,
     live_id: str = Query(..., description="ID da live"),
     user: User = Depends(get_current_user),
     queue: ReportQueue = Depends(get_report_queue),
@@ -33,7 +36,7 @@ def get_report_status(
     queue: ReportQueue = Depends(get_report_queue),
 ):
     """Retorna o status e progresso de um job de relatório."""
-    status_info = queue.get_status(job_id)
+    status_info = queue.get_status(job_id, user_id=user.id)
     if status_info is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job não encontrado.")
     return status_info
@@ -46,7 +49,7 @@ def download_report(
     queue: ReportQueue = Depends(get_report_queue),
 ):
     """Download do PDF quando o job estiver concluído."""
-    status_info = queue.get_status(job_id)
+    status_info = queue.get_status(job_id, user_id=user.id)
     if status_info is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job não encontrado.")
 
@@ -56,7 +59,7 @@ def download_report(
             detail=f"Relatório falhou: {status_info.get('error', 'erro desconhecido')}",
         )
 
-    pdf_bytes = queue.get_pdf(job_id)
+    pdf_bytes = queue.get_pdf(job_id, user_id=user.id)
     if pdf_bytes is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

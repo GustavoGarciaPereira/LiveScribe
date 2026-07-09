@@ -28,6 +28,9 @@ httpx-oauth
 python-multipart
 bcrypt
 
+# Rate limiting
+slowapi
+
 # Transcricao YouTube
 youtube-transcript-api
 

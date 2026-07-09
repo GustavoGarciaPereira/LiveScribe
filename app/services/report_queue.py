@@ -21,6 +21,8 @@ from app.services.emotion import LexiconEmotionAnalyzer
 
 logger = logging.getLogger(__name__)
 
+_JOB_TTL = 3600  # 1 hora
+
 
 class ReportJob:
     """Representa um job de geração de relatório."""
@@ -77,6 +79,7 @@ class ReportQueue:
 
     def submit(self, live_id: str, user_id: int | None = None) -> str:
         """Enfileira um job e retorna o job_id."""
+        self._cleanup_old_jobs()
         job_id = uuid.uuid4().hex[:12]
         job = ReportJob(job_id, live_id, user_id)
         with self._lock:
@@ -85,21 +88,38 @@ class ReportQueue:
         logger.info(f"Report job {job_id} submitted (live={live_id}).")
         return job_id
 
-    def get_status(self, job_id: str) -> dict | None:
-        """Retorna o status de um job ou None se não encontrado."""
+    def get_status(self, job_id: str, user_id: int | None = None) -> dict | None:
+        """Retorna o status de um job ou None se não encontrado ou não pertencer ao usuário."""
         with self._lock:
             job = self._jobs.get(job_id)
         if job is None:
             return None
+        if user_id is not None and job.user_id != user_id:
+            return None
         return job.to_dict()
 
-    def get_pdf(self, job_id: str) -> bytes | None:
-        """Retorna o PDF do job concluído ou None se não pronto."""
+    def get_pdf(self, job_id: str, user_id: int | None = None) -> bytes | None:
+        """Retorna o PDF do job concluído ou None se não pronto ou não pertencer ao usuário."""
         with self._lock:
             job = self._jobs.get(job_id)
         if job is None or job.status != "done":
             return None
+        if user_id is not None and job.user_id != user_id:
+            return None
         return job.pdf_bytes
+
+    def _cleanup_old_jobs(self):
+        """Remove jobs concluídos/failed há mais de _JOB_TTL segundos."""
+        cutoff = time.time() - _JOB_TTL
+        with self._lock:
+            to_remove = [
+                jid for jid, job in self._jobs.items()
+                if job.finished_at is not None and job.finished_at < cutoff
+            ]
+            for jid in to_remove:
+                del self._jobs[jid]
+        if to_remove:
+            logger.info(f"Cleaned up {len(to_remove)} old report jobs.")
 
     def _process_jobs(self):
         """Loop principal da thread de processamento."""

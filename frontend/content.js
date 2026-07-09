@@ -47,6 +47,10 @@ function startMonitoring(chatDocument) {
 
     console.log("PulsoDaLive: Monitoramento ativado!");
 
+    // Cache de mensagens ja enviadas para evitar duplicatas (max 500)
+    const sentMessages = new Set();
+    const MAX_CACHE = 500;
+
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
@@ -69,6 +73,15 @@ function startMonitoring(chatDocument) {
                     const message = messageEl.textContent.trim();
 
                     if (author && message && liveId) {
+                        // Deduplicacao: mesma mensagem pode disparar o MutationObserver varias vezes
+                        const key = author + '|' + message;
+                        if (sentMessages.has(key)) return;
+                        sentMessages.add(key);
+                        if (sentMessages.size > MAX_CACHE) {
+                            const first = sentMessages.values().next().value;
+                            sentMessages.delete(first);
+                        }
+
                         console.log(`%c[DADO VÁLIDO] Live ID: ${liveId}, Autor: ${author}`, 'color: green');
                         chrome.storage.local.get(['token'], (result) => {
                             const headers = { 'Content-Type': 'application/json' };

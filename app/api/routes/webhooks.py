@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.core.limiter import limiter
 from app.models.user import User
 from app.models.webhook import Webhook
 from app.schemas.webhook import WebhookCreate, WebhookResponse
@@ -10,7 +11,9 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 @router.post("", response_model=WebhookResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 def create_webhook(
+    request: Request,
     payload: WebhookCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

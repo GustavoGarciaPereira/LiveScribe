@@ -1,6 +1,8 @@
+import logging
+from urllib.parse import quote
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from app.models.user import User
 from app.schemas.chat import (
     ChatMessage, MessageResponse, WordFrequencyItem, WordFrequencyResponse,
@@ -16,33 +18,36 @@ from app.schemas.chat import (
     ModalityTimelineResponse, ModalityBucket,
     EmotionTimelineResponse, EmotionBucket,
 )
-from app.api.deps import get_chat_service, get_current_user, get_current_user_optional_v2
+from app.api.deps import get_chat_service, get_current_user
+from app.core.limiter import limiter
 from app.repositories.messages import list_messages_by_live
 from app.services.chat import ChatService
 from app.services.webhook import trigger_webhooks
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/messages", response_model=MessageResponse)
+@limiter.limit("120/minute")
 def save_message(
+    request: Request,
     payload: ChatMessage,
     background_tasks: BackgroundTasks,
-    user: Optional[User] = Depends(get_current_user_optional_v2),
+    user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
     message = service.save_message(
         payload.live_id, payload.author, payload.message,
         payload.platform or "youtube",
-        user_id=user.id if user else None,
+        user_id=user.id,
     )
-    # Dispara webhooks de nova mensagem em background
     background_tasks.add_task(trigger_webhooks, "new_message", {
         "live_id": message.live_id,
         "author": message.author,
         "message": message.message,
         "platform": message.platform,
-    })
+    }, user_id=user.id)
     return MessageResponse.model_validate(message)
 
 
@@ -61,7 +66,7 @@ def list_lives_endpoint(
 @router.get("/{live_id}/word-frequency", response_model=WordFrequencyResponse)
 def word_frequency(
     live_id: str,
-    top_n: int = 10,
+    top_n: int = Query(10, ge=1, le=500),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -84,7 +89,8 @@ def sentiment_analysis(
     try:
         summary = service.sentiment_summary(live_id, user_id=user.id)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        logger.error(f"Sentiment analysis failed for live_id={live_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno ao processar análise.")
     if summary is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
     return SentimentResponse(
@@ -100,7 +106,7 @@ def sentiment_analysis(
 @router.get("/{live_id}/sentiment-timeline", response_model=SentimentTimelineResponse)
 def sentiment_timeline(
     live_id: str,
-    interval_minutes: int = 5,
+    interval_minutes: int = Query(5, ge=1, le=1440),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -118,16 +124,15 @@ def sentiment_timeline(
 def engagement_peaks(
     live_id: str,
     background_tasks: BackgroundTasks,
-    top_n: int = 5,
-    window_minutes: int = 1,
+    top_n: int = Query(5, ge=1, le=500),
+    window_minutes: int = Query(1, ge=1, le=60),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
     result = service.engagement_peaks(live_id, top_n, window_minutes, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
-    # Dispara webhooks de pico de engajamento em background
-    background_tasks.add_task(trigger_webhooks, "peak_engagement", result)
+    background_tasks.add_task(trigger_webhooks, "peak_engagement", result, user_id=user.id)
     return EngagementPeaksResponse(
         live_id=result["live_id"],
         window_minutes=result["window_minutes"],
@@ -138,7 +143,7 @@ def engagement_peaks(
 @router.get("/{live_id}/topics", response_model=TopicsResponse)
 def topics(
     live_id: str,
-    top_n: int = 10,
+    top_n: int = Query(10, ge=1, le=500),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -155,7 +160,7 @@ def topics(
 def topic_timeline(
     live_id: str,
     term: str,
-    interval_minutes: int = 5,
+    interval_minutes: int = Query(5, ge=1, le=1440),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -173,7 +178,7 @@ def topic_timeline(
 @router.get("/{live_id}/top-authors", response_model=TopAuthorsResponse)
 def top_authors(
     live_id: str,
-    top_n: int = 10,
+    top_n: int = Query(10, ge=1, le=500),
     sort_by: str = "messages",
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
@@ -191,7 +196,7 @@ def top_authors(
 @router.get("/{live_id}/emojis", response_model=EmojiResponse)
 def emoji_analysis(
     live_id: str,
-    top_n: int = 20,
+    top_n: int = Query(20, ge=1, le=500),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -208,7 +213,7 @@ def emoji_analysis(
 @router.get("/{live_id}/questions", response_model=QuestionsResponse)
 def questions(
     live_id: str,
-    min_length: int = 10,
+    min_length: int = Query(10, ge=1, le=500),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -224,7 +229,7 @@ def questions(
 @router.get("/{live_id}/emotion-timeline", response_model=EmotionTimelineResponse)
 def emotion_timeline(
     live_id: str,
-    interval_minutes: int = 1,
+    interval_minutes: int = Query(1, ge=1, le=1440),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -241,7 +246,7 @@ def emotion_timeline(
 @router.get("/{live_id}/modality-timeline", response_model=ModalityTimelineResponse)
 def modality_timeline(
     live_id: str,
-    interval_minutes: int = 5,
+    interval_minutes: int = Query(5, ge=1, le=1440),
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ):
@@ -270,14 +275,15 @@ def export_data(
     if not messages:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
 
+    safe_name = quote(live_id, safe="")
     if format == "json":
         content = exporter.export_json(live_id, include_analysis=include_analysis, user_id=user.id)
         return Response(content=content, media_type="application/json",
-                        headers={"Content-Disposition": f"attachment; filename={live_id}.json"})
+                        headers={"Content-Disposition": f"attachment; filename={safe_name}.json"})
     elif format == "csv":
         content = exporter.export_csv(live_id, user_id=user.id)
         return Response(content=content, media_type="text/csv",
-                        headers={"Content-Disposition": f"attachment; filename={live_id}.csv"})
+                        headers={"Content-Disposition": f"attachment; filename={safe_name}.csv"})
     elif format == "xlsx":
         try:
             content = exporter.export_xlsx(live_id, user_id=user.id)
@@ -285,7 +291,7 @@ def export_data(
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(e))
         return Response(content=content,
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        headers={"Content-Disposition": f"attachment; filename={live_id}.xlsx"})
+                        headers={"Content-Disposition": f"attachment; filename={safe_name}.xlsx"})
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato inválido. Use json, csv ou xlsx.")
 
@@ -293,7 +299,7 @@ def export_data(
 @router.get("/{live_id}/topic-sentiment", response_model=TopicSentimentResponse)
 def topic_sentiment(
     live_id: str,
-    top_n: int = 10,
+    top_n: int = Query(10, ge=1, le=500),
     video_id: str | None = None,
     user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),

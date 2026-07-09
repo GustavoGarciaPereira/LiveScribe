@@ -9,18 +9,22 @@ from app.models.webhook import Webhook
 logger = logging.getLogger(__name__)
 
 
-async def trigger_webhooks(event: str, payload: dict):
-    """Dispara POST para todos os webhooks ativos de um evento (assíncrono, em background).
+async def trigger_webhooks(event: str, payload: dict, user_id: int | None = None):
+    """Dispara POST para webhooks ativos de um evento (assíncrono, em background).
     
-    Cria sua própria sessão de banco para ser seguro em BackgroundTasks.
+    Se user_id for fornecido, dispara apenas webhooks do usuário dono do recurso.
+    Cria sua própria sessão de banco para ser segura em BackgroundTasks.
     Falhas são logadas mas nunca propagadas — o request principal não é afetado.
     """
     db = SessionLocal()
     try:
-        webhooks = db.query(Webhook).filter(
+        query = db.query(Webhook).filter(
             Webhook.event == event,
             Webhook.is_active == True,
-        ).all()
+        )
+        if user_id is not None:
+            query = query.filter(Webhook.user_id == user_id)
+        webhooks = query.all()
 
         if not webhooks:
             return

@@ -50,5 +50,5 @@ PORTUGUESE_STOPWORDS = {
     "kkkk", "kkkkk", "ksks", "ksksks", "rsrs",
     "haha", "hahaha", "hehe", "huehue", "huahuehua",
     "fod", "foda", "foda-se", "fds", "putz", "pqp", "vtmnc",
-    "claro", "óbvio", "lógico", "com certeza", "óbv",
+    "claro", "óbvio", "lógico", "com certeza", "óbv", 'dia'
 }
