@@ -19,7 +19,9 @@ class Settings(BaseSettings):
         default_factory=lambda: [
             "http://localhost:8000",
             "http://127.0.0.1:8000",
-            "http://localhost:5173",   # Vite / frontend dev
+            "http://localhost:5173",           # Vite / frontend dev
+            "https://www.youtube.com",         # Extensão Chrome
+            "https://m.youtube.com",           # YouTube mobile
         ]
     )
     CORS_ALLOW_CREDENTIALS: bool = False
