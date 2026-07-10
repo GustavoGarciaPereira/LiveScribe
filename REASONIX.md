@@ -3,18 +3,18 @@
 ## Identificacao
 
 - **Nome do projeto:** PulsoDaLive / LiveScribe
-- **Objetivo:** Coletar chat de lives de multiplas plataformas e analisar discurso (frequencia de palavras, sentimentos, topicos, picos de engajamento, emojis, ranking de espectadores)
-- **Stack:** FastAPI + SQLAlchemy + SQLite + LeIA (lexico) + scikit-learn + regex + Extensao Chrome
+- **Objetivo:** Coletar chat de lives de multiplas plataformas e analisar discurso (frequencia de palavras, sentimentos, topicos, picos de engajamento, emojis, ranking de espectadores, enquadramentos, sarcasmo)
+- **Stack:** FastAPI + SQLAlchemy + SQLite + LeIA (lexico) + scikit-learn + regex + Extensao Chrome + Chart.js + WeasyPrint
 
 ## Arquitetura atual
 
 ```
 app/
 ├── api/
-│   ├── deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor + RegexEmojiExtractor), get_current_user, get_report_queue
+│   ├── deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor + RegexEmojiExtractor + LexiconModalityAnalyzer + LexiconEmotionAnalyzer + LexiconFramingAnalyzer + LexiconSarcasmAnalyzer), get_current_user, get_report_queue
 │   └── routes/
 │       ├── auth.py          -> register, login, login/google, callback/google, logout, /me
-│       ├── chat.py          -> 16 endpoints de analise + export
+│       ├── chat.py          -> 18 endpoints de analise + export
 │       ├── reports.py       -> 3 endpoints de relatorio PDF (create, status, download)
 │       └── webhooks.py      -> CRUD de webhooks (create, list, delete)
 ├── core/
@@ -24,6 +24,8 @@ app/
 │   ├── emoji_sentiment.py   -> Mapeamento de 50 emojis para sentimento (Positivo/Negativo/Neutro)
 │   ├── emotion_lexicon.py   -> Lexico de 6 emocoes (alegria, raiva, medo, surpresa, tristeza, nojo)
 │   ├── modality_lexicon.py  -> Lexico de modalizacao (certeza, duvida, enfase)
+│   ├── framing_lexicon.py   -> Lexico de enquadramentos (ataque, defesa, ironia, elogio, pergunta) — 150+ entradas
+│   ├── sarcasm_lexicon.py   -> Lexico de sarcasmo/ironia — ~60 expressoes
 │   └── timezone.py          -> Utilitarios de fuso horario (BRT, America/Sao_Paulo)
 ├── infrastructure/
 │   └── database.py          -> SQLAlchemy engine + SessionLocal (SQLite)
@@ -35,62 +37,66 @@ app/
 │   └── messages.py          -> create_message, list_messages_by_live, list_lives, list_top_authors
 ├── schemas/
 │   ├── auth.py              -> LoginRequest, RegisterRequest, TokenResponse, UserInfo
-│   ├── chat.py              -> ChatMessage, MessageResponse, WordFrequency*, Sentiment*, SentimentStatistics, LiveSummary, TimelineBucket, EngagementPeak, TopicItem, TopicBucket, EmojiItem, AuthorItem + Responses
+│   ├── chat.py              -> ChatMessage, MessageResponse, WordFrequency*, Sentiment*, SentimentStatistics, LiveSummary, TimelineBucket, EngagementPeak, TopicItem, TopicBucket, EmojiItem, AuthorItem, QuestionItem, ModalityBucket, EmotionBucket, TopicSentimentItem, FramingResponse, SarcasmResponse + Responses
 │   └── webhook.py           -> WebhookCreate, WebhookResponse
 ├── services/
 │   ├── auth.py              -> create_access_token, verify_token (JWT, jose)
-│   ├── chat.py              -> ChatService (recebe SentimentAnalyzer + TopicExtractor + EmojiExtractor + ModalityAnalyzer + EmotionAnalyzer por DI)
+│   ├── chat.py              -> ChatService (recebe 7 analisadores por DI: SentimentAnalyzer + TopicExtractor + EmojiExtractor + ModalityAnalyzer + EmotionAnalyzer + FramingAnalyzer + SarcasmAnalyzer)
 │   ├── emojis.py            -> EmojiExtractor (ABC) + RegexEmojiExtractor (regex Extended_Pictographic)
 │   ├── emotion.py           -> EmotionAnalyzer (ABC) + LexiconEmotionAnalyzer (6 categorias)
 │   ├── export.py            -> ExportService (JSON, CSV, XLSX)
+│   ├── framing.py           -> FramingAnalyzer (ABC) + LexiconFramingAnalyzer (6 categorias: ataque, defesa, ironia, elogio, pergunta, neutro)
 │   ├── modality.py          -> ModalityAnalyzer (ABC) + LexiconModalityAnalyzer (certeza/duvida/enfase)
 │   ├── questions.py         -> detect_questions (agrupa perguntas similares por distancia de Levenshtein)
 │   ├── report.py            -> ReportService: gera PDF com graficos, tabelas e analises
 │   ├── report_queue.py      -> ReportQueue: fila assincrona para geracao de PDF em background
+│   ├── sarcasm.py           -> SarcasmAnalyzer (ABC) + LexiconSarcasmAnalyzer (sarcastic / non_sarcastic)
 │   ├── sentiment.py         -> SentimentAnalyzer (ABC) + LeiaSentimentAnalyzer (LeIA)
 │   ├── topics.py            -> TopicExtractor (ABC) + TfidfTopicExtractor (sklearn) com _filter_tokens
 │   ├── transcript.py        -> TranscriptService: obtem transcricao via YouTube Transcript API
 │   └── webhook.py           -> trigger_webhooks (POST para URLs cadastradas)
 ├── templates/
-│   ├── dashboard.html       -> Dashboard interativo com Chart.js
+│   ├── dashboard.html       -> Dashboard interativo com Chart.js (inclui graficos de enquadramentos e sarcasmo)
 │   ├── favicon.svg          -> Favicon SVG do PulsoDaLive
 │   ├── landing.html         -> Landing page de vendas com secoes de features, precos, FAQ
-│   └── report_html.py       -> Template Jinja2 para o relatorio PDF
+│   └── report_html.py       -> Template Jinja2 para o relatorio PDF (inclui secoes de enquadramentos e sarcasmo)
 └── main.py                  -> App factory, lifespan, CORS, healthcheck, /dashboard, /landing, /favicon.ico, migracoes legadas
 
 frontend/
 ├── content.js               -> Extensao Chrome (v4): MutationObserver no #chatframe do YouTube + token JWT
 ├── popup.html               -> Popup de login dark mode
 ├── popup.js                 -> Login/logout via API, armazena token no chrome.storage.local
-└── manifest.json            -> Manifest V3, permissões youtube + localhost
+└── manifest.json            -> Manifest V3, permissoes youtube + localhost
 
 tests/
-├── conftest.py              -> Fixtures: db_session, mock_analyzer, mock_topic_extractor, client, auth_client
-├── test_auth.py
-├── test_dashboard.py
-├── test_deps.py
+├── conftest.py              -> Fixtures: db_session, mock_analyzer, mock_topic_extractor, client (com LexiconFramingAnalyzer + LexiconSarcasmAnalyzer), auth_client
+├── test_auth.py             -> Testes de autenticacao JWT e OAuth
+├── test_dashboard.py        -> Testes de elementos HTML do dashboard
+├── test_deps.py             -> Testes de injecao de dependencia
 ├── test_emojis.py           -> 4 testes de extracao de emoji
 ├── test_emotion.py          -> Testes do EmotionAnalyzer (6 categorias)
-├── test_export.py
+├── test_export.py           -> Testes de exportacao JSON/CSV/XLSX
+├── test_framing.py          -> 15 testes do FramingAnalyzer, servico e rota
 ├── test_modality.py         -> Testes do ModalityAnalyzer
-├── test_models.py
+├── test_models.py           -> Testes dos modelos ORM
 ├── test_questions.py        -> Testes de deteccao de perguntas
-├── test_repositories.py
-├── test_report.py           -> Testes da fila de relatorios e geracao de PDF
+├── test_repositories.py     -> Testes do repositorio de mensagens
+├── test_report.py           -> Testes da fila de relatorios, geracao de PDF e template (inclui framing e sarcasmo)
 ├── test_routes.py           -> 44 testes (todas as rotas incluindo topic-timeline, top-authors)
-├── test_schemas.py
-├── test_services.py         -> testes (incluindo sentiment timeline, peaks, topics, emojis)
+├── test_sarcasm.py          -> 10 testes do SarcasmAnalyzer, servico e rota
+├── test_schemas.py          -> Testes dos schemas Pydantic
+├── test_services.py         -> Testes do ChatService (sentiment timeline, peaks, topics, emojis)
 ├── test_topics.py           -> Testes do _filter_tokens e TfidfTopicExtractor
 ├── test_topic_sentiment.py  -> Testes do endpoint topic-sentiment com transcript
 ├── test_transcript.py       -> Testes do TranscriptService e find_snippet_at
-└── test_webhooks.py
+└── test_webhooks.py         -> Testes de CRUD e trigger de webhooks
 ```
 
 ## Decisoes de design
 
-- **Sentimento desacoplado:** Interface `SentimentAnalyzer` (ABC) permite trocar o analisador sem mexer no ChatService. Implementacao atual: LeiaSentimentAnalyzer (VADER adaptado para portugues).
-- **Topicos desacoplados:** Interface `TopicExtractor` (ABC) + `TfidfTopicExtractor` (sklearn), mesmo padrao do SentimentAnalyzer.
-- **Emojis desacoplados:** Interface `EmojiExtractor` (ABC) + `RegexEmojiExtractor` (regex Extended_Pictographic), injetado no ChatService.
+- **Analisadores desacoplados:** Interfaces ABC para SentimentAnalyzer, TopicExtractor, EmojiExtractor, ModalityAnalyzer, EmotionAnalyzer, FramingAnalyzer, SarcasmAnalyzer — todos injetados por DI no ChatService via `app/api/deps.py`.
+- **Lexico de enquadramentos:** `FRAMING_LEXICON` mapeia palavras para listas de categorias (ataque, defesa, ironia, elogio, pergunta). O `LexiconFramingAnalyzer` inverte o mapeamento, compila regex por categoria, e usa `\b` para palavras simples e substring para expressoes. Mensagens sem match viram "neutro".
+- **Lexico de sarcasmo:** `SARCASM_LEXICON` com ~60 expressoes ironicas. `LexiconSarcasmAnalyzer` verifica presenca via regex case-insensitive e retorna `{"sarcastic": N, "non_sarcastic": M}`.
 - **Autenticacao JWT:** python-jose, tokens de 24h, providers local (bcrypt) e Google OAuth2. Token armazenado em **cookie HttpOnly** (`access_token`) — nao em localStorage. Rotas GET/POST protegidas com `get_current_user`. Logout via `POST /api/auth/logout` (deleta cookie).
 - **Rate limiting:** slowapi com limites por endpoint (5/min auth, 120/min messages, 3/min reports, 10/min webhooks). Limiter compartilhado em `app/core/limiter.py`.
 - **Seguranca:** CORS restrito a origens explicitas; XSS mitigado com `escapeHtml()` no dashboard; SSRF mitigado com validacao de URL de webhook (bloqueio de IPs internos); SECRET_KEY validado em todos os ambientes; parametros com bounds via `Query(ge=1, le=...)`; erros 500 retornam mensagem generica + log; webhooks e relatorios isolados por `user_id`.
@@ -101,6 +107,9 @@ tests/
 - **Type hints modernos:** Python 3.10+ sintaxe (`list[X]`, `X | None`, `dict[K,V]`).
 - **Regex para emojis:** `\p{Extended_Pictographic}` no modulo `regex` — evita capturar digitos (0-9) que o `\p{Emoji}` incluiria.
 - **Estatisticas de sentimento:** Media, desvio padrao e IC 95% calculados a partir dos compound scores do LeIA via `_compute_statistics`. Usa `1.96 * std/sqrt(n)` para o IC. Se `n < 2`, retorna `null` para `std_dev` e `ci_95`. Exposto via `analyze_with_compound()` no LeiaSentimentAnalyzer.
+- **Visualizacao no dashboard:** Grafico de barras horizontal para enquadramentos; grafico de rosca (doughnut) para sarcasmo. Ambos com tooltip mostrando contagem e percentual.
+- **Relatorio PDF:** Ambos enriquecimento via `report_queue.py` — necessario adicionar cada novo analisador ao `ChatService` criado na thread background (mesmo problema recorrente com framing e sarcasmo).
+- **Test coverage:** 92%, com testes unitarios, de servico e de rota para cada novo analisador.
 
 ## Endpoints
 
@@ -133,6 +142,8 @@ tests/
 | GET | /api/chat/{live_id}/modality-timeline | 🔒 | Modalidade (certeza/duvida/enfase) |
 | GET | /api/chat/{live_id}/emotion-timeline | 🔒 | Emocoes (6 categorias) |
 | GET | /api/chat/{live_id}/questions | 🔒 | Perguntas frequentes detectadas |
+| GET | /api/chat/{live_id}/framing | 🔒 | Enquadramentos (ataque/defesa/ironia/elogio/pergunta/neutro) |
+| GET | /api/chat/{live_id}/sarcasm | 🔒 | Sarcasmo/ironia (sarcastic/non_sarcastic) |
 | **Relatorios** |
 | POST | /api/reports | 🔒 | Criar job de relatorio PDF |
 | GET | /api/reports/{job_id} | 🔒 | Status do job de relatorio |
@@ -225,6 +236,31 @@ tests/
 16. **Chart.js com SRI** — `integrity="sha384-..."` + `crossorigin="anonymous"` no CDN
 17. **154 testes, 91% de cobertura**
 
+### Fase 7 — Analise de enquadramentos (Framing)
+1. **`app/core/framing_lexicon.py`** — 150+ entradas mapeando palavras/expressoes a categorias (ataque, defesa, ironia, elogio, pergunta)
+2. **`app/services/framing.py`** — `FramingAnalyzer` (ABC) + `LexiconFramingAnalyzer` com regex pre-compilados (\b para palavras, substring para expressoes)
+3. **Schema `FramingResponse`** — `live_id`, `total_messages`, `framing` (dict com as 6 categorias)
+4. **Endpoint `GET /api/chat/{live_id}/framing`** — autenticado, retorna contagens por categoria
+5. **Dashboard** — card "🗣️ Enquadramentos" com grafico de barras horizontal (Chart.js), cores por categoria, tooltip com percentual
+6. **Relatorio PDF** — tabela com categorias, contagens e percentuais no template Jinja2
+7. **15 testes** — unitarios do analisador, servico e rota
+
+### Fase 8 — Deteccao de sarcasmo (Sarcasm)
+1. **`app/core/sarcasm_lexicon.py`** — ~60 expressoes ironicas (ironia explicita, riso ironico, falso elogio, questionamento ironico, deboche)
+2. **`app/services/sarcasm.py`** — `SarcasmAnalyzer` (ABC) + `LexiconSarcasmAnalyzer` com pattern matching case-insensitive
+3. **Schema `SarcasmResponse`** — `live_id`, `total_messages`, `sarcasm` (`sarcastic`/`non_sarcastic`)
+4. **Endpoint `GET /api/chat/{live_id}/sarcasm`** — autenticado
+5. **Dashboard** — card "😏 Sarcasmo/ironia" com grafico de rosca (doughnut), cores laranja/cinza
+6. **Relatorio PDF** — tabela com Sarcastico/Nao sarcastico, contagens e percentuais
+7. **10 testes** — unitarios do analisador, servico e rota
+
+### Fase 9 — Correcoes pos-implementacao
+1. **report_queue.py** — Adicionados `LexiconFramingAnalyzer` e `LexiconSarcasmAnalyzer` ao `ChatService` da thread background (bug recorrente: PDFs mostravam zeros)
+2. **conftest.py** — Adicionados `LexiconFramingAnalyzer` e `LexiconSarcasmAnalyzer` ao `client` fixture
+3. **report.py** — Fallback explicito de zeros para `framing` e `sarcasm` no contexto do template
+4. **report_html.py** — Templates refatorados para usar iteracao com `items()` em vez de keys hardcoded
+5. **Total: 182 testes, 92% de cobertura**
+
 ## Comandos uteis
 
 ```bash
@@ -238,9 +274,8 @@ pip install -r requirements.txt
 TOKEN="xxx"
 curl -X POST http://127.0.0.1:8000/api/chat/messages -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"author":"Test","message":"Boa noite","live_id":"test"}'
 curl http://127.0.0.1:8000/api/chat/lives -H "Authorization: Bearer $TOKEN"
-curl http://127.0.0.1:8000/api/chat/test/emojis?top_n=20
-curl http://127.0.0.1:8000/api/chat/test/top-authors?top_n=10
-curl http://127.0.0.1:8000/api/chat/test/topic-timeline?term=gato
+curl http://127.0.0.1:8000/api/chat/test/framing -H "Authorization: Bearer $TOKEN"
+curl http://127.0.0.1:8000/api/chat/test/sarcasm -H "Authorization: Bearer $TOKEN"
 
 # Rodar testes
 pytest -v --cov=app --cov-report=term-missing
