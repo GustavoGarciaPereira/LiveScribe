@@ -18,6 +18,7 @@ from app.schemas.chat import (
     ModalityTimelineResponse, ModalityBucket,
     EmotionTimelineResponse, EmotionBucket,
     FramingResponse,
+    SarcasmResponse,
 )
 from app.api.deps import get_chat_service, get_current_user
 from app.core.limiter import limiter
@@ -274,6 +275,22 @@ def framing_analysis(
         live_id=result["live_id"],
         total_messages=result["total_messages"],
         framing=result["framing"],
+    )
+
+
+@router.get("/{live_id}/sarcasm", response_model=SarcasmResponse)
+def sarcasm_analysis(
+    live_id: str,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    result = service.sarcasm_analysis(live_id, user_id=user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return SarcasmResponse(
+        live_id=result["live_id"],
+        total_messages=result["total_messages"],
+        sarcasm=result["sarcasm"],
     )
 
 

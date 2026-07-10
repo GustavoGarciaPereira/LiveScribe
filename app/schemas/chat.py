@@ -200,3 +200,9 @@ class FramingResponse(BaseModel):
     live_id: str
     total_messages: int
     framing: dict[str, int]
+
+
+class SarcasmResponse(BaseModel):
+    live_id: str
+    total_messages: int
+    sarcasm: dict[str, int]

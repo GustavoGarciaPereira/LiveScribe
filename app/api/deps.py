@@ -13,6 +13,7 @@ from app.services.emojis import RegexEmojiExtractor
 from app.services.modality import LexiconModalityAnalyzer
 from app.services.emotion import LexiconEmotionAnalyzer
 from app.services.framing import LexiconFramingAnalyzer
+from app.services.sarcasm import LexiconSarcasmAnalyzer
 
 optional_security = HTTPBearer(auto_error=False)
 
@@ -54,6 +55,7 @@ def get_analyzers():
         "modality": LexiconModalityAnalyzer(),
         "emotion": LexiconEmotionAnalyzer(),
         "framing": LexiconFramingAnalyzer(),
+        "sarcasm": LexiconSarcasmAnalyzer(),
     }
 
 
@@ -67,6 +69,7 @@ def get_chat_service(db: Session = Depends(get_db)) -> ChatService:
         analyzers["modality"],
         analyzers["emotion"],
         analyzers["framing"],
+        analyzers["sarcasm"],
     )
 
 
