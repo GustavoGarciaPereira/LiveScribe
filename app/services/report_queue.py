@@ -18,6 +18,7 @@ from app.services.topics import TfidfTopicExtractor
 from app.services.emojis import RegexEmojiExtractor
 from app.services.modality import LexiconModalityAnalyzer
 from app.services.emotion import LexiconEmotionAnalyzer
+from app.services.framing import LexiconFramingAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +145,8 @@ class ReportQueue:
                 emoji = RegexEmojiExtractor()
                 modality = LexiconModalityAnalyzer()
                 emotion = LexiconEmotionAnalyzer()
-                chat_service = ChatService(db, sentiment, topic, emoji, modality, emotion)
+                framing = LexiconFramingAnalyzer()
+                chat_service = ChatService(db, sentiment, topic, emoji, modality, emotion, framing)
 
                 job.progress = 30
                 # Recarrega o modulo report.py para evitar cache do worker thread

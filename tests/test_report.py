@@ -155,6 +155,37 @@ def test_report_template_has_framing_section():
     assert "42.0%" in source
 
 
+def test_report_pdf_generated_with_framing_data(db_session, mock_analyzer, monkeypatch):
+    """O PDF gerado com mensagens que ativam framing contém valores > 0."""
+    from app.services.framing import LexiconFramingAnalyzer
+
+    framing = LexiconFramingAnalyzer()
+    svc = ChatService(db_session, mock_analyzer, framing_analyzer=framing)
+    svc.save_message("live-framing", "A", "seu idiota")
+    svc.save_message("live-framing", "B", "parabéns, excelente!")
+    svc.save_message("live-framing", "C", "bom dia a todos")
+
+    captured = {}
+    import app.templates.report_html as rh
+    orig_render = rh.report_html.render
+    def spy_render(context):
+        captured["ctx"] = context
+        return orig_render(context)
+    monkeypatch.setattr(rh.report_html, "render", spy_render)
+
+    report_svc = ReportService(svc)
+    pdf_bytes = report_svc.generate_pdf("live-framing", user_id=None)
+
+    assert captured["ctx"]["framing"]["ataque"] >= 1
+    assert captured["ctx"]["framing"]["elogio"] >= 1
+    assert captured["ctx"]["framing"]["neutro"] >= 1
+    # Soma = total de mensagens
+    total = sum(captured["ctx"]["framing"].values())
+    assert total == 3
+    assert isinstance(pdf_bytes, bytes)
+    assert pdf_bytes.startswith(b"%PDF-")
+
+
 class TestReportRoutes:
     def test_create_report_requires_auth(self, client):
         resp = client.post("/api/reports?live_id=test-live")

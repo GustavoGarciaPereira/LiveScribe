@@ -111,16 +111,14 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 {% endif %}
 
 <h3>Enquadramentos (Framing)</h3>
-{% if framing and (framing.ataque or framing.defesa or framing.ironia or framing.elogio or framing.pergunta or framing.neutro) %}
-{% set total_frame = framing.ataque + framing.defesa + framing.ironia + framing.elogio + framing.pergunta + framing.neutro %}
+{% if framing %}
+{% set FRAMING_LABELS = {"ataque": "Ataque", "defesa": "Defesa", "ironia": "Ironia", "elogio": "Elogio", "pergunta": "Pergunta", "neutro": "Neutro"} %}
+{% set FRAMING_COLORS = {"ataque": "#ef4444", "defesa": "#3b82f6", "ironia": "#f59e0b", "elogio": "#22c55e", "pergunta": "#8b5cf6", "neutro": "#94a3b8"} %}
 <table>
   <tr><th>Categoria</th><th>Mensagens</th><th>Percentual</th></tr>
-  <tr><td style="color:#ef4444;font-weight:bold;">Ataque</td><td>{{ framing.ataque }}</td><td>{% if total_frame > 0 %}{{ (framing.ataque / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
-  <tr><td style="color:#3b82f6;font-weight:bold;">Defesa</td><td>{{ framing.defesa }}</td><td>{% if total_frame > 0 %}{{ (framing.defesa / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
-  <tr><td style="color:#f59e0b;font-weight:bold;">Ironia</td><td>{{ framing.ironia }}</td><td>{% if total_frame > 0 %}{{ (framing.ironia / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
-  <tr><td style="color:#22c55e;font-weight:bold;">Elogio</td><td>{{ framing.elogio }}</td><td>{% if total_frame > 0 %}{{ (framing.elogio / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
-  <tr><td style="color:#8b5cf6;font-weight:bold;">Pergunta</td><td>{{ framing.pergunta }}</td><td>{% if total_frame > 0 %}{{ (framing.pergunta / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
-  <tr><td style="color:#94a3b8;font-weight:bold;">Neutro</td><td>{{ framing.neutro }}</td><td>{% if total_frame > 0 %}{{ (framing.neutro / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  {% for key, value in framing.items() %}
+  <tr><td style="color:{{ FRAMING_COLORS.get(key, '#94a3b8') }};font-weight:bold;">{{ FRAMING_LABELS.get(key, key) }}</td><td>{{ value }}</td><td>{% if total_messages > 0 %}{{ (value / total_messages * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  {% endfor %}
 </table>
 {% else %}
 <p class="empty-msg">Nenhum dado de enquadramento disponivel.</p>

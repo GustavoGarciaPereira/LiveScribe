@@ -75,7 +75,7 @@ class ReportService:
             "authors": authors.get("authors", []) if authors else [],
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
-            "framing": framing.get("framing", {}) if framing else {},
+            "framing": framing.get("framing", {"ataque": 0, "defesa": 0, "ironia": 0, "elogio": 0, "pergunta": 0, "neutro": 0}) if framing else {"ataque": 0, "defesa": 0, "ironia": 0, "elogio": 0, "pergunta": 0, "neutro": 0},
             "sentiment_timeline": timeline,
             "total_intervals": len(timeline),
             "charts": charts,
