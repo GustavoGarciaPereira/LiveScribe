@@ -19,6 +19,7 @@ from app.services.emojis import RegexEmojiExtractor
 from app.services.modality import LexiconModalityAnalyzer
 from app.services.emotion import LexiconEmotionAnalyzer
 from app.services.framing import LexiconFramingAnalyzer
+from app.services.sarcasm import LexiconSarcasmAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +147,8 @@ class ReportQueue:
                 modality = LexiconModalityAnalyzer()
                 emotion = LexiconEmotionAnalyzer()
                 framing = LexiconFramingAnalyzer()
-                chat_service = ChatService(db, sentiment, topic, emoji, modality, emotion, framing)
+                sarcasm = LexiconSarcasmAnalyzer()
+                chat_service = ChatService(db, sentiment, topic, emoji, modality, emotion, framing, sarcasm)
 
                 job.progress = 30
                 # Recarrega o modulo report.py para evitar cache do worker thread
