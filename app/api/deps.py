@@ -14,6 +14,7 @@ from app.services.modality import LexiconModalityAnalyzer
 from app.services.emotion import LexiconEmotionAnalyzer
 from app.services.framing import LexiconFramingAnalyzer
 from app.services.sarcasm import LexiconSarcasmAnalyzer
+from app.services.aspects import LexiconAspectAnalyzer
 
 optional_security = HTTPBearer(auto_error=False)
 
@@ -56,6 +57,7 @@ def get_analyzers():
         "emotion": LexiconEmotionAnalyzer(),
         "framing": LexiconFramingAnalyzer(),
         "sarcasm": LexiconSarcasmAnalyzer(),
+        "aspect": LexiconAspectAnalyzer(),
     }
 
 
@@ -70,6 +72,7 @@ def get_chat_service(db: Session = Depends(get_db)) -> ChatService:
         analyzers["emotion"],
         analyzers["framing"],
         analyzers["sarcasm"],
+        analyzers["aspect"],
     )
 
 

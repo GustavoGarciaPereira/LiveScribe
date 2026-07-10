@@ -19,6 +19,7 @@ from app.schemas.chat import (
     EmotionTimelineResponse, EmotionBucket,
     FramingResponse,
     SarcasmResponse,
+    AspectSentimentResponse,
 )
 from app.api.deps import get_chat_service, get_current_user
 from app.core.limiter import limiter
@@ -291,6 +292,23 @@ def sarcasm_analysis(
         live_id=result["live_id"],
         total_messages=result["total_messages"],
         sarcasm=result["sarcasm"],
+    )
+
+
+@router.get("/{live_id}/aspect-sentiment", response_model=AspectSentimentResponse)
+def aspect_sentiment(
+    live_id: str,
+    entities: str | None = Query(None, description="Entities separated by comma"),
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    entity_list = entities.split(",") if entities else None
+    result = service.aspect_sentiment(live_id, user_id=user.id, entities=entity_list)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return AspectSentimentResponse(
+        live_id=result["live_id"],
+        aspects=result["aspects"],
     )
 
 

@@ -206,3 +206,13 @@ class SarcasmResponse(BaseModel):
     live_id: str
     total_messages: int
     sarcasm: dict[str, int]
+
+
+class AspectSentimentItem(BaseModel):
+    messages: int
+    sentiment: dict[str, int]
+
+
+class AspectSentimentResponse(BaseModel):
+    live_id: str
+    aspects: dict[str, AspectSentimentItem]

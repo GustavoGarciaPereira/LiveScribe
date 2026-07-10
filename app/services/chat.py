@@ -13,11 +13,12 @@ from app.services.modality import ModalityAnalyzer
 from app.services.emotion import EmotionAnalyzer
 from app.services.framing import FramingAnalyzer
 from app.services.sarcasm import SarcasmAnalyzer
+from app.services.aspects import AspectAnalyzer
 from sqlalchemy.orm import Session
 
 
 class ChatService:
-    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None, modality_analyzer: ModalityAnalyzer | None = None, emotion_analyzer: EmotionAnalyzer | None = None, framing_analyzer: FramingAnalyzer | None = None, sarcasm_analyzer: SarcasmAnalyzer | None = None):
+    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None, modality_analyzer: ModalityAnalyzer | None = None, emotion_analyzer: EmotionAnalyzer | None = None, framing_analyzer: FramingAnalyzer | None = None, sarcasm_analyzer: SarcasmAnalyzer | None = None, aspect_analyzer: AspectAnalyzer | None = None):
         self.db = db
         self.sentiment_analyzer = sentiment_analyzer
         self.topic_extractor = topic_extractor
@@ -26,6 +27,7 @@ class ChatService:
         self.emotion_analyzer = emotion_analyzer
         self.framing_analyzer = framing_analyzer
         self.sarcasm_analyzer = sarcasm_analyzer
+        self.aspect_analyzer = aspect_analyzer
 
     @staticmethod
     def _bucket_messages(messages: list, interval_minutes: int) -> list[dict]:
@@ -453,6 +455,19 @@ class ChatService:
             "total_messages": len(texts),
             "sarcasm": sarcasm,
         }
+
+    def aspect_sentiment(self, live_id: str, user_id: int | None = None, entities: list[str] | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        texts = [m.message for m in messages]
+
+        if not texts:
+            return None
+
+        if self.aspect_analyzer is None:
+            return {"live_id": live_id, "aspects": {}}
+
+        aspects = self.aspect_analyzer.analyze(texts, entities=entities)
+        return {"live_id": live_id, "aspects": aspects}
 
     def topic_sentiment(self, live_id: str, top_n: int = 10, user_id: int | None = None, video_id: str | None = None) -> dict | None:
         """Cruza tópicos com sentimento/emoção — 'o sentimento X é sobre qual assunto?'

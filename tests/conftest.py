@@ -16,6 +16,7 @@ from app.services.report_queue import ReportQueue
 from app.services.sentiment import LeiaSentimentAnalyzer
 from app.services.framing import LexiconFramingAnalyzer
 from app.services.sarcasm import LexiconSarcasmAnalyzer
+from app.services.aspects import LexiconAspectAnalyzer
 
 
 # ── Reset do rate limiter entre testes ───────────────────────
@@ -95,7 +96,7 @@ def client(db_session, mock_analyzer, mock_topic_extractor, report_queue):
             pass
 
     def override_get_chat_service():
-        return ChatService(db_session, mock_analyzer, mock_topic_extractor, None, None, None, LexiconFramingAnalyzer(), LexiconSarcasmAnalyzer())
+        return ChatService(db_session, mock_analyzer, mock_topic_extractor, None, None, None, LexiconFramingAnalyzer(), LexiconSarcasmAnalyzer(), LexiconAspectAnalyzer())
 
     def override_get_report_queue():
         return report_queue
