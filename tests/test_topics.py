@@ -103,3 +103,32 @@ class TestTfidfTopicExtractor:
         # A unica palavra valida que sobra e "live"
         assert len(topics) >= 1
         assert topics[0]["term"] == "live"
+
+    def test_stopwords_block_low_value_verbs(self):
+        """Verifica que verbos de baixo valor como 'acho' e 'agradecemos'
+        não aparecem nos top tópicos, mesmo sendo frequentes no texto."""
+        extractor = TfidfTopicExtractor()
+        texts = [
+            "eu acho que o python e legal",
+            "agradecemos muito pelo apoio de todos",
+            "eu acredito que vai dar certo",
+            "agradeço a presenca de todos",
+            "acho que sim, pode ser",
+            "agradecemos demais pela oportunidade",
+            "python e a melhor linguagem",
+            "o codigo ficou muito bom",
+            "python tem muitas bibliotecas",
+            "a comunidade python e muito ativa",
+        ]
+        topics = extractor.extract(texts, top_n=20)
+        terms = [t["term"] for t in topics]
+
+        # A palavra substantiva 'python' deve aparecer
+        assert "python" in terms, f"'python' deveria estar entre os topicos: {terms}"
+
+        # Verbos de baixo valor não devem aparecer
+        assert "acho" not in terms, f"'acho' nao deveria estar nos topicos: {terms}"
+        assert "agradecemos" not in terms, f"'agradecemos' nao deveria estar nos topicos: {terms}"
+        assert "acredito" not in terms, f"'acredito' nao deveria estar nos topicos: {terms}"
+        assert "agradeco" not in terms, f"'agradeco' nao deveria estar nos topicos: {terms}"
+        assert "agradeço" not in terms, f"'agradeço' nao deveria estar nos topicos: {terms}"

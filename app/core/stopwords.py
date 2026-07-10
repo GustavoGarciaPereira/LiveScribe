@@ -50,5 +50,29 @@ PORTUGUESE_STOPWORDS = {
     "kkkk", "kkkkk", "ksks", "ksksks", "rsrs",
     "haha", "hahaha", "hehe", "huehue", "huahuehua",
     "fod", "foda", "foda-se", "fds", "putz", "pqp", "vtmnc",
-    "claro", "óbvio", "lógico", "com certeza", "óbv", 'dia'
+    "claro", "óbvio", "lógico", "com certeza", "óbv", 'dia',
+
+    # Verbos de primeira pessoa (baixo valor analítico em tópicos)
+    "acho", "acha", "acham", "achamos",
+    "acredito", "acredita", "acreditamos",
+    "agradeco", "agradeço", "agradece", "agradecemos",
+    "entao", "então",
+    "po", "pô",
+    "tava",
+
+    # Verbos genéricos frequentes que não configuram tópicos substantivos
+    "ver", "viu", "vejo", "vê", "ve",
+    "fala", "falar", "falou", "falei", "falam", "falando",
+    "quer", "quero", "queria", "querem", "quis",
+    "faz", "fazer", "fez", "fiz", "faco", "faço", "fazendo",
+    "sei", "sabe", "saber", "soube",
+    "diz", "dizer", "disse", "digo",
+    "achou", "achei",
+
+    # Pronomes e advérbios genéricos
+    "coisa", "coisas",
+    "gente",
+    "ainda",
+    "super",
+    "tudo", "nada", "algo",
 }
