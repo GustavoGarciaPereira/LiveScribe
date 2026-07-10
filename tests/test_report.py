@@ -131,6 +131,30 @@ def test_report_template_has_significance_section():
     assert "0.012" in source
 
 
+def test_report_template_has_framing_section():
+    """O template do relatorio contem secao de Enquadramentos com categorias."""
+    from app.templates.report_html import report_html
+    source = report_html.render({
+        "live_id": "test", "total_messages": 100, "unique_authors": 5,
+        "first_msg": "", "last_msg": "", "duration": "00:30:00",
+        "sentiment_summary": {}, "word_freq": [], "topics": [],
+        "topic_sentiment": [], "authors": [], "questions": [], "emojis": [],
+        "framing": {
+            "ataque": 10, "defesa": 15, "ironia": 5,
+            "elogio": 20, "pergunta": 8, "neutro": 42,
+        },
+        "charts": {}, "generated_at": "",
+    })
+    assert "Enquadramentos" in source
+    assert "Ataque" in source
+    assert "10" in source
+    assert "10.0%" in source
+    assert "20" in source
+    assert "20.0%" in source
+    assert "42" in source
+    assert "42.0%" in source
+
+
 class TestReportRoutes:
     def test_create_report_requires_auth(self, client):
         resp = client.post("/api/reports?live_id=test-live")

@@ -110,6 +110,22 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 <p class="empty-msg">Nenhum emoji registrado.</p>
 {% endif %}
 
+<h3>Enquadramentos (Framing)</h3>
+{% if framing and (framing.ataque or framing.defesa or framing.ironia or framing.elogio or framing.pergunta or framing.neutro) %}
+{% set total_frame = framing.ataque + framing.defesa + framing.ironia + framing.elogio + framing.pergunta + framing.neutro %}
+<table>
+  <tr><th>Categoria</th><th>Mensagens</th><th>Percentual</th></tr>
+  <tr><td style="color:#ef4444;font-weight:bold;">Ataque</td><td>{{ framing.ataque }}</td><td>{% if total_frame > 0 %}{{ (framing.ataque / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  <tr><td style="color:#3b82f6;font-weight:bold;">Defesa</td><td>{{ framing.defesa }}</td><td>{% if total_frame > 0 %}{{ (framing.defesa / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  <tr><td style="color:#f59e0b;font-weight:bold;">Ironia</td><td>{{ framing.ironia }}</td><td>{% if total_frame > 0 %}{{ (framing.ironia / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  <tr><td style="color:#22c55e;font-weight:bold;">Elogio</td><td>{{ framing.elogio }}</td><td>{% if total_frame > 0 %}{{ (framing.elogio / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  <tr><td style="color:#8b5cf6;font-weight:bold;">Pergunta</td><td>{{ framing.pergunta }}</td><td>{% if total_frame > 0 %}{{ (framing.pergunta / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  <tr><td style="color:#94a3b8;font-weight:bold;">Neutro</td><td>{{ framing.neutro }}</td><td>{% if total_frame > 0 %}{{ (framing.neutro / total_frame * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+</table>
+{% else %}
+<p class="empty-msg">Nenhum dado de enquadramento disponivel.</p>
+{% endif %}
+
 <!-- ===== Paginas 2-4: Analise Detalhada ===== -->
 <div class="section">
 <h2>2. Analise Detalhada</h2>

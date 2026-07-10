@@ -33,6 +33,7 @@ class ReportService:
         modality = self.chat_service.modality_timeline(live_id, interval_minutes=5, user_id=user_id)
         emotions = self.chat_service.emotion_timeline(live_id, interval_minutes=1, user_id=user_id)
         emojis = self.chat_service.emoji_analysis(live_id, top_n=20, user_id=user_id)
+        framing = self.chat_service.framing_analysis(live_id, user_id=user_id)
         sentiment_timeline = self.chat_service.sentiment_timeline(live_id, interval_minutes=5, user_id=user_id)
         # Garantir que sentiment_timeline seja dict (pode vir como JSON string em alguns setups)
         if isinstance(sentiment_timeline, str):
@@ -74,6 +75,7 @@ class ReportService:
             "authors": authors.get("authors", []) if authors else [],
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
+            "framing": framing.get("framing", {}) if framing else {},
             "sentiment_timeline": timeline,
             "total_intervals": len(timeline),
             "charts": charts,

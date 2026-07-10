@@ -146,6 +146,11 @@
             <div id="topic-sentiment-detail" style="margin-top:0.5rem; font-size:0.8rem; color:#94a3b8;"></div>
         </div>
         <div class="card">
+            <h2>🗣️ Enquadramentos</h2>
+            <div id="framing-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+            <canvas id="framing-chart"></canvas>
+        </div>
+        <div class="card">
             <h2>Exportar dados</h2>
             <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
             <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
@@ -163,7 +168,7 @@ function getHeaders() {
     return {};
 }
 
-let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart;
+let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart, framingChart;
 
 let livesData = [];
 let cachedData = {};
@@ -257,6 +262,7 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadEmotionTimeline(liveId),
         loadTopicSentiment(liveId),
         loadSentimentSummary(liveId),
+        loadFraming(liveId),
     ]);
 });
 
@@ -761,6 +767,59 @@ function renderTopicSentiment() {
         }
     });
     document.getElementById('topic-sentiment-detail').innerHTML = detailHtml;
+}
+
+async function loadFraming(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/framing', { headers: getHeaders() });
+        const data = await res.json();
+        cachedData.framing = data;
+        renderFraming();
+    } catch (e) { showEmpty('framing', true); }
+}
+
+function renderFraming() {
+    const data = cachedData.framing;
+    if (!data || !data.framing) {
+        showEmpty('framing', true);
+        return;
+    }
+    showEmpty('framing', false);
+    const labels = ['Ataque', 'Defesa', 'Ironia', 'Elogio', 'Pergunta', 'Neutro'];
+    const keys = ['ataque', 'defesa', 'ironia', 'elogio', 'pergunta', 'neutro'];
+    const values = keys.map(k => data.framing[k] || 0);
+    const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#22c55e', '#8b5cf6', '#94a3b8'];
+    if (framingChart) framingChart.destroy();
+    framingChart = new Chart(document.getElementById('framing-chart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Mensagens',
+                data: values,
+                backgroundColor: colors,
+                borderColor: colors,
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            indexAxis: 'y',
+            scales: { x: { beginAtZero: true } },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = data.total_messages;
+                            const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+                            return ctx.raw + ' (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 function applyFilters() {
