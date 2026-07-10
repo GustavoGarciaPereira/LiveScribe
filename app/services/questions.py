@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from collections import defaultdict
 
 QUESTION_PATTERNS = [
@@ -33,7 +34,20 @@ QUESTION_PATTERNS = [
     r'\bvocês?\s+sabem\b',
     r'\bvocês?\s+têm\b',
     r'\bcad[êe]\b',
+    r'^(que|qual|quanto|quem|quando|onde|como|cad[êe])\b',
+    r'\bque\s+horas\b',
+    r'\bpara\s+que\b',
+    r'\bo\s+que\b',
+    r'\bcomo\b',
 ]
+
+
+def _normalize(text: str) -> str:
+    """Remove acentos e pontuação, retorna lowercase."""
+    nfkd = unicodedata.normalize("NFKD", text)
+    text_no_accents = "".join(c for c in nfkd if not unicodedata.combining(c))
+    text_clean = re.sub(r"[^a-zA-Z0-9\s]", "", text_no_accents)
+    return text_clean.lower().strip()
 
 
 def is_question(text: str) -> bool:
@@ -45,7 +59,8 @@ def is_question(text: str) -> bool:
 
 
 def tokenize(text: str) -> set[str]:
-    return set(re.findall(r'\b\w+\b', text.lower()))
+    normalized = _normalize(text)
+    return set(re.findall(r'\b\w+\b', normalized))
 
 
 def jaccard_similarity(set1: set[str], set2: set[str]) -> float:
