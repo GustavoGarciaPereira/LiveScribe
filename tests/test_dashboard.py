@@ -21,6 +21,7 @@ class TestDashboard:
         assert "modality-chart" in html
         assert "emotion-chart" in html
         assert "framing-chart" in html
+        assert "sarcasm-chart" in html
         assert "export-pdf" in html
         assert "pdf-progress" in html
         assert "live-link-btn" in html
@@ -41,6 +42,7 @@ class TestDashboard:
         assert "loadModalityTimeline" in html
         assert "loadEmotionTimeline" in html
         assert "loadFraming" in html
+        assert "loadSarcasm" in html
 
     def test_contains_ux_improvements(self, client):
         response = client.get("/dashboard")

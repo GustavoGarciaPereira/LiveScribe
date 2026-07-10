@@ -124,6 +124,18 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 <p class="empty-msg">Nenhum dado de enquadramento disponivel.</p>
 {% endif %}
 
+<h3>Sarcasmo/Ironia</h3>
+{% if sarcasm %}
+{% set total_sarc = sarcasm.sarcastic + sarcasm.non_sarcastic %}
+<table>
+  <tr><th>Categoria</th><th>Mensagens</th><th>Percentual</th></tr>
+  <tr><td style="color:#f59e0b;font-weight:bold;">Sarcastico</td><td>{{ sarcasm.sarcastic }}</td><td>{% if total_sarc > 0 %}{{ (sarcasm.sarcastic / total_sarc * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+  <tr><td style="color:#94a3b8;font-weight:bold;">Nao sarcastico</td><td>{{ sarcasm.non_sarcastic }}</td><td>{% if total_sarc > 0 %}{{ (sarcasm.non_sarcastic / total_sarc * 100) | round(1) }}%{% else %}0%{% endif %}</td></tr>
+</table>
+{% else %}
+<p class="empty-msg">Nenhum dado de sarcasmo disponivel.</p>
+{% endif %}
+
 <!-- ===== Paginas 2-4: Analise Detalhada ===== -->
 <div class="section">
 <h2>2. Analise Detalhada</h2>

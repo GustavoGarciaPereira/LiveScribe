@@ -186,6 +186,24 @@ def test_report_pdf_generated_with_framing_data(db_session, mock_analyzer, monke
     assert pdf_bytes.startswith(b"%PDF-")
 
 
+def test_report_template_has_sarcasm_section():
+    """O template do relatorio contem secao de Sarcasmo/Ironia."""
+    from app.templates.report_html import report_html
+    source = report_html.render({
+        "live_id": "test", "total_messages": 100, "unique_authors": 5,
+        "first_msg": "", "last_msg": "", "duration": "00:30:00",
+        "sentiment_summary": {}, "word_freq": [], "topics": [],
+        "topic_sentiment": [], "authors": [], "questions": [], "emojis": [],
+        "framing": {}, "sarcasm": {"sarcastic": 10, "non_sarcastic": 90},
+        "charts": {}, "generated_at": "",
+    })
+    assert "Sarcasmo/Ironia" in source
+    assert "10" in source
+    assert "10.0%" in source
+    assert "90" in source
+    assert "90.0%" in source
+
+
 class TestReportRoutes:
     def test_create_report_requires_auth(self, client):
         resp = client.post("/api/reports?live_id=test-live")

@@ -151,6 +151,11 @@
             <canvas id="framing-chart"></canvas>
         </div>
         <div class="card">
+            <h2>😏 Sarcasmo/ironia</h2>
+            <div id="sarcasm-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+            <canvas id="sarcasm-chart"></canvas>
+        </div>
+        <div class="card">
             <h2>Exportar dados</h2>
             <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
             <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
@@ -168,7 +173,7 @@ function getHeaders() {
     return {};
 }
 
-let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart, framingChart;
+let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart, framingChart, sarcasmChart;
 
 let livesData = [];
 let cachedData = {};
@@ -263,6 +268,7 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadTopicSentiment(liveId),
         loadSentimentSummary(liveId),
         loadFraming(liveId),
+        loadSarcasm(liveId),
     ]);
 });
 
@@ -814,6 +820,54 @@ function renderFraming() {
                             const total = data.total_messages;
                             const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
                             return ctx.raw + ' (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function loadSarcasm(liveId) {
+    try {
+        const res = await fetch(API + '/' + liveId + '/sarcasm', { headers: getHeaders() });
+        const data = await res.json();
+        cachedData.sarcasm = data;
+        renderSarcasm();
+    } catch (e) { showEmpty('sarcasm', true); }
+}
+
+function renderSarcasm() {
+    const data = cachedData.sarcasm;
+    if (!data || !data.sarcasm) {
+        showEmpty('sarcasm', true);
+        return;
+    }
+    showEmpty('sarcasm', false);
+    const labels = ['Sarcastico', 'Nao sarcastico'];
+    const values = [data.sarcasm.sarcastic || 0, data.sarcasm.non_sarcastic || 0];
+    const colors = ['#f59e0b', '#94a3b8'];
+    if (sarcasmChart) sarcasmChart.destroy();
+    sarcasmChart = new Chart(document.getElementById('sarcasm-chart'), {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors,
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = data.total_messages;
+                            const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+                            return ctx.label + ': ' + ctx.raw + ' (' + pct + '%)';
                         }
                     }
                 }

@@ -34,6 +34,7 @@ class ReportService:
         emotions = self.chat_service.emotion_timeline(live_id, interval_minutes=1, user_id=user_id)
         emojis = self.chat_service.emoji_analysis(live_id, top_n=20, user_id=user_id)
         framing = self.chat_service.framing_analysis(live_id, user_id=user_id)
+        sarcasm = self.chat_service.sarcasm_analysis(live_id, user_id=user_id)
         sentiment_timeline = self.chat_service.sentiment_timeline(live_id, interval_minutes=5, user_id=user_id)
         # Garantir que sentiment_timeline seja dict (pode vir como JSON string em alguns setups)
         if isinstance(sentiment_timeline, str):
@@ -76,6 +77,7 @@ class ReportService:
             "questions": questions.get("questions", []) if questions else [],
             "emojis": emojis.get("emojis", []) if emojis else [],
             "framing": framing.get("framing", {"ataque": 0, "defesa": 0, "ironia": 0, "elogio": 0, "pergunta": 0, "neutro": 0}) if framing else {"ataque": 0, "defesa": 0, "ironia": 0, "elogio": 0, "pergunta": 0, "neutro": 0},
+            "sarcasm": sarcasm.get("sarcasm", {"sarcastic": 0, "non_sarcastic": 0}) if sarcasm else {"sarcastic": 0, "non_sarcastic": 0},
             "sentiment_timeline": timeline,
             "total_intervals": len(timeline),
             "charts": charts,
