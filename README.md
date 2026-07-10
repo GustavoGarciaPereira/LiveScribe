@@ -11,18 +11,22 @@ Captura e análise de discurso em tempo real de chats de **lives do YouTube**. C
 - Envio automático de mensagens para a API com token JWT opcional
 - Suporte a múltiplas plataformas (coluna `platform`)
 
-### Análise de Discurso (16 endpoints)
+### Análise de Discurso (19 endpoints)
 | Análise | Descrição |
 |---------|-----------|
 | **Frequência de palavras** | Top-N palavras ignorando stopwords em português |
 | **Sentimento (LeIA)** | Positivo / Negativo / Neutro — VADER adaptado para português |
 | **Timeline de sentimentos** | Evolução do sentimento em buckets de tempo |
+| **Significância estatística** | Teste T de Welch entre buckets consecutivos — destaca viradas reais (p < 0.05) |
 | **Emoções (6 categorias)** | Alegria, Raiva, Medo, Surpresa, Tristeza, Nojo — léxico com ~500 palavras |
 | **Modalidade discursiva** | Certeza / Dúvida / Ênfase — timeline por bucket |
 | **Picos de engajamento** | Janelas deslizantes de maior atividade no chat |
 | **Tópicos (TF-IDF)** | Extração de termos mais relevantes via scikit-learn |
 | **Timeline de tópico** | Frequência de um termo específico ao longo do tempo |
 | **Topic-Sentiment** | Cruzamento: "que sentimento as pessoas expressam ao falar do tópico X?" + emoção dominante + snippet de transcrição do YouTube |
+| **Enquadramentos (Framing)** | Classificação em ataque, defesa, ironia, elogio, pergunta, neutro — léxico com 150+ expressões |
+| **Sarcasmo** | Detecção de comentários sarcásticos/irônicos — léxico com ~60 expressões |
+| **Sentimento por Aspectos** | Detecta entidades (pessoas, marcas) e calcula sentimento agregado para cada uma |
 | **Ranking de emojis** | Emojis mais usados com sentimento associado (mapa de 50 emojis) |
 | **Perguntas** | Detecção de perguntas no chat + agrupamento por similaridade Jaccard |
 | **Top autores** | Ranking de espectadores mais ativos + sentimento dominante |
@@ -82,11 +86,11 @@ Captura e análise de discurso em tempo real de chats de **lives do YouTube**. C
 | **API** | FastAPI + Pydantic v2 |
 | **ORM** | SQLAlchemy + SQLite (WAL mode) |
 | **Auth** | JWT (python-jose) + bcrypt + Google OAuth2 (httpx-oauth) |
-| **NLP** | LeIA (sentimento), scikit-learn (TF-IDF), léxicos próprio (emoções, modalidade) |
+| **NLP** | LeIA (sentimento), scikit-learn (TF-IDF), léxicos próprios (emoções, modalidade, framing, sarcasmo, aspectos) |
 | **PDF** | WeasyPrint + Jinja2 + Matplotlib |
 | **Extensão** | Chrome Manifest V3 (content.js + popup) |
 | **Transcrição** | youtube-transcript-api |
-| **Testes** | pytest + pytest-cov + httpx (129 testes) |
+| **Testes** | pytest + pytest-cov + httpx (201 testes) |
 
 ---
 
@@ -158,6 +162,9 @@ Acesse:
 | `GET` | `/{live_id}/top-authors` | ✅ | Ranking de espectadores |
 | `GET` | `/{live_id}/emojis` | ✅ | Emojis + sentimento |
 | `GET` | `/{live_id}/questions` | ✅ | Perguntas detectadas + grupos Jaccard |
+| `GET` | `/{live_id}/framing` | ✅ | Enquadramentos (ataque/defesa/ironia/elogio/pergunta/neutro) |
+| `GET` | `/{live_id}/sarcasm` | ✅ | Sarcasmo (sarcastic/non_sarcastic) |
+| `GET` | `/{live_id}/aspect-sentiment` | ✅ | Sentimento por aspectos/entidades |
 | `GET` | `/{live_id}/emotion-timeline` | ✅ | 6 emoções em buckets de tempo |
 | `GET` | `/{live_id}/modality-timeline` | ✅ | Certeza/Dúvida/Ênfase em buckets |
 | `GET` | `/{live_id}/export` | ✅ | Exportar mensagens (json / csv / xlsx) |
@@ -200,11 +207,17 @@ graph TD
     C --> G[EmojiExtractor]
     C --> H[ModalityAnalyzer]
     C --> I[EmotionAnalyzer]
+    C --> I2[FramingAnalyzer]
+    C --> I3[SarcasmAnalyzer]
+    C --> I4[AspectAnalyzer]
     E --> E1[LeiaSentimentAnalyzer]
     F --> F1[TfidfTopicExtractor]
     G --> G1[RegexEmojiExtractor]
     H --> H1[LexiconModalityAnalyzer]
     I --> I1[LexiconEmotionAnalyzer]
+    I2 --> I21[LexiconFramingAnalyzer]
+    I3 --> I31[LexiconSarcasmAnalyzer]
+    I4 --> I41[LexiconAspectAnalyzer]
     C --> J[QuestionsService]
     C --> K[TranscriptService]
     J --> J1[detect_questions]
@@ -225,6 +238,9 @@ graph TD
 | `EmojiExtractor` | `RegexEmojiExtractor` | regex `\p{Extended_Pictographic}` |
 | `ModalityAnalyzer` | `LexiconModalityAnalyzer` | Léxico de 60+ expressões |
 | `EmotionAnalyzer` | `LexiconEmotionAnalyzer` | Léxico de ~500 palavras, 6 emoções |
+| `FramingAnalyzer` | `LexiconFramingAnalyzer` | Léxico de 150+ expressões, 6 categorias |
+| `SarcasmAnalyzer` | `LexiconSarcasmAnalyzer` | Léxico de ~60 expressões irônicas |
+| `AspectAnalyzer` | `LexiconAspectAnalyzer` | Léxico de ~80 entidades + LeIA |
 
 Todas seguem ABC — podem ser trocadas sem modificar o `ChatService` (Injeção de Dependência).
 
@@ -233,18 +249,21 @@ Todas seguem ABC — podem ser trocadas sem modificar o `ChatService` (Injeção
 ```
 app/
 ├── api/
-│   ├── deps.py              # DI: DB, auth, analisadores, report queue
+│   ├── deps.py              # DI: DB, auth, analisadores (8), report queue
 │   └── routes/
 │       ├── auth.py           # 5 endpoints de autenticação
-│       ├── chat.py           # 15 endpoints de análise
+│       ├── chat.py           # 19 endpoints de análise + export
 │       ├── reports.py        # 3 endpoints de relatório PDF
 │       └── webhooks.py       # 3 endpoints de webhook
 ├── core/
+│   ├── aspects_lexicon.py    # Léxico de ~80 entidades para sentimento por aspecto
 │   ├── config.py             # Settings (pydantic-settings)
 │   ├── emoji_sentiment.py    # Mapa de 50 emojis → sentimento
 │   ├── emotion_lexicon.py    # Léxico de ~500 palavras (6 emoções)
+│   ├── framing_lexicon.py    # Léxico de 150+ expressões para enquadramento
 │   ├── modality_lexicon.py   # Léxico de modalidade (certeza/duvida/enfase)
-│   ├── stopwords.py          # Stopwords pt-BR
+│   ├── sarcasm_lexicon.py    # Léxico de ~60 expressões de sarcasmo/ironia
+│   ├── stopwords.py          # Stopwords pt-BR (~330)
 │   └── timezone.py           # Utilitários de timezone (BRT)
 ├── infrastructure/
 │   └── database.py           # Engine + SessionLocal (SQLite WAL)
@@ -253,21 +272,24 @@ app/
 │   └── messages.py           # Queries de mensagens
 ├── schemas/                  # Pydantic: auth, chat, webhook
 ├── services/
+│   ├── aspects.py            # LexiconAspectAnalyzer
 │   ├── auth.py               # JWT create/verify
-│   ├── chat.py               # ChatService orquestrador
+│   ├── chat.py               # ChatService orquestrador (8 analyzers)
 │   ├── emojis.py             # RegexEmojiExtractor
 │   ├── emotion.py            # LexiconEmotionAnalyzer
 │   ├── export.py             # ExportService (JSON/CSV/XLSX)
+│   ├── framing.py            # LexiconFramingAnalyzer
 │   ├── modality.py           # LexiconModalityAnalyzer
 │   ├── questions.py          # Detect questions + Jaccard grouping
 │   ├── report.py             # ReportService (PDF + Matplotlib)
 │   ├── report_queue.py       # Background worker thread
+│   ├── sarcasm.py            # LexiconSarcasmAnalyzer
 │   ├── sentiment.py          # LeiaSentimentAnalyzer
 │   ├── topics.py             # TfidfTopicExtractor
 │   ├── transcript.py         # YouTube Transcript API + cache
 │   └── webhook.py            # trigger_webhooks async
 ├── templates/
-│   ├── dashboard.html        # SPA Chart.js
+│   ├── dashboard.html        # SPA Chart.js (com framing, sarcasmo, aspectos)
 │   └── report_html.py        # Template Jinja2 para PDF
 └── main.py                   # App factory + lifespan + CORS
 ```
@@ -280,18 +302,22 @@ app/
 pytest -v --cov=app --cov-report=term-missing
 ```
 
-**154 testes, 91%+ cobertura** — 17 arquivos de teste.
+**201 testes, 93%+ cobertura** — 21 arquivos de teste.
 
 | Arquivo | Foco |
 |---------|------|
 | `test_routes.py` | Integração de **todos os endpoints** com `auth_client` |
 | `test_services.py` | ChatService + LeIA real + platform |
+| `test_aspects.py` | LexiconAspectAnalyzer + aspect_sentiment |
 | `test_auth.py` | JWT, register, login, Google OAuth, /me |
 | `test_emotion.py` | LexiconEmotionAnalyzer + emotion_timeline |
 | `test_modality.py` | LexiconModalityAnalyzer + modality_timeline |
+| `test_framing.py` | LexiconFramingAnalyzer + framing endpoint |
+| `test_sarcasm.py` | LexiconSarcasmAnalyzer + sarcasm endpoint |
 | `test_questions.py` | detect_questions + agrupamento Jaccard |
 | `test_report.py` | ReportQueue + ReportService + fluxo HTTP completo |
 | `test_topic_sentiment.py` | topic_sentiment com e sem transcript |
+| `test_topics.py` | _filter_tokens, TfidfTopicExtractor, stopwords |
 | `test_transcript.py` | TranscriptService + cache + snippet |
 | `test_export.py` | Export JSON/CSV/XLSX |
 | `test_emojis.py` | RegexEmojiExtractor |
@@ -352,6 +378,10 @@ Em produção, `SECRET_KEY` **obrigatório** ser alterado — o validador do `Se
 | **Feature 7** | Detecção de perguntas + agrupamento por similaridade Jaccard |
 | **Feature 8** | Transcrição YouTube + topic-sentiment enriquecido |
 | **Feature 9** | Relatórios PDF com gráficos (background worker + polling) |
+| **Fase 7** | Análise de enquadramentos (framing) — léxico 150+ expressões, 6 categorias |
+| **Fase 8** | Detecção de sarcasmo — léxico ~60 expressões irônicas |
+| **Fase 9** | Correções pós-implantação: PDF com framing/sarcasmo, refatoração templates |
+| **Fase 10** | Sentimento por aspectos, significância estatística (T de Welch), expansão stopwords (+110), scripts de validação de léxicos |
 
 ---
 

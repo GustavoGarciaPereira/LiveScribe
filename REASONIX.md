@@ -11,21 +11,22 @@
 ```
 app/
 ├── api/
-│   ├── deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor + RegexEmojiExtractor + LexiconModalityAnalyzer + LexiconEmotionAnalyzer + LexiconFramingAnalyzer + LexiconSarcasmAnalyzer), get_current_user, get_report_queue
+│   ├── deps.py              -> get_db, get_chat_service (injeta LeiaSentimentAnalyzer + TfidfTopicExtractor + RegexEmojiExtractor + LexiconModalityAnalyzer + LexiconEmotionAnalyzer + LexiconFramingAnalyzer + LexiconSarcasmAnalyzer + LexiconAspectAnalyzer), get_current_user, get_report_queue
 │   └── routes/
 │       ├── auth.py          -> register, login, login/google, callback/google, logout, /me
-│       ├── chat.py          -> 18 endpoints de analise + export
+│       ├── chat.py          -> 19 endpoints de analise + export
 │       ├── reports.py       -> 3 endpoints de relatorio PDF (create, status, download)
 │       └── webhooks.py      -> CRUD de webhooks (create, list, delete)
 ├── core/
 │   ├── config.py            -> Configuracoes do .env (pydantic-settings)
 │   ├── limiter.py           -> Limiter compartilhado do slowapi (rate limiting)
-│   ├── stopwords.py         -> ~220 stopwords em portugues (incluindo girias e abreviacoes de chat)
+│   ├── stopwords.py         -> ~330 stopwords em portugues (incluindo girias, abreviacoes de chat e verbos de baixo valor)
 │   ├── emoji_sentiment.py   -> Mapeamento de 50 emojis para sentimento (Positivo/Negativo/Neutro)
 │   ├── emotion_lexicon.py   -> Lexico de 6 emocoes (alegria, raiva, medo, surpresa, tristeza, nojo)
 │   ├── modality_lexicon.py  -> Lexico de modalizacao (certeza, duvida, enfase)
 │   ├── framing_lexicon.py   -> Lexico de enquadramentos (ataque, defesa, ironia, elogio, pergunta) — 150+ entradas
 │   ├── sarcasm_lexicon.py   -> Lexico de sarcasmo/ironia — ~60 expressoes
+│   ├── aspects_lexicon.py   -> Lexico de entidades/aspectos para sentimento por aspecto
 │   └── timezone.py          -> Utilitarios de fuso horario (BRT, America/Sao_Paulo)
 ├── infrastructure/
 │   └── database.py          -> SQLAlchemy engine + SessionLocal (SQLite)
@@ -37,11 +38,12 @@ app/
 │   └── messages.py          -> create_message, list_messages_by_live, list_lives, list_top_authors
 ├── schemas/
 │   ├── auth.py              -> LoginRequest, RegisterRequest, TokenResponse, UserInfo
-│   ├── chat.py              -> ChatMessage, MessageResponse, WordFrequency*, Sentiment*, SentimentStatistics, LiveSummary, TimelineBucket, EngagementPeak, TopicItem, TopicBucket, EmojiItem, AuthorItem, QuestionItem, ModalityBucket, EmotionBucket, TopicSentimentItem, FramingResponse, SarcasmResponse + Responses
+│   ├── chat.py              -> ChatMessage, MessageResponse, WordFrequency*, Sentiment*, SentimentStatistics, LiveSummary, TimelineBucket, EngagementPeak, TopicItem, TopicBucket, EmojiItem, AuthorItem, QuestionItem, ModalityBucket, EmotionBucket, TopicSentimentItem, FramingResponse, SarcasmResponse, AspectSentimentItem, AspectSentimentResponse + Responses
 │   └── webhook.py           -> WebhookCreate, WebhookResponse
 ├── services/
 │   ├── auth.py              -> create_access_token, verify_token (JWT, jose)
-│   ├── chat.py              -> ChatService (recebe 7 analisadores por DI: SentimentAnalyzer + TopicExtractor + EmojiExtractor + ModalityAnalyzer + EmotionAnalyzer + FramingAnalyzer + SarcasmAnalyzer)
+│   ├── chat.py              -> ChatService (recebe 8 analisadores por DI: SentimentAnalyzer + TopicExtractor + EmojiExtractor + ModalityAnalyzer + EmotionAnalyzer + FramingAnalyzer + SarcasmAnalyzer + AspectAnalyzer)
+│   ├── aspects.py           -> AspectAnalyzer (ABC) + LexiconAspectAnalyzer (sentimento por entidade)
 │   ├── emojis.py            -> EmojiExtractor (ABC) + RegexEmojiExtractor (regex Extended_Pictographic)
 │   ├── emotion.py           -> EmotionAnalyzer (ABC) + LexiconEmotionAnalyzer (6 categorias)
 │   ├── export.py            -> ExportService (JSON, CSV, XLSX)
@@ -69,7 +71,8 @@ frontend/
 └── manifest.json            -> Manifest V3, permissoes youtube + localhost
 
 tests/
-├── conftest.py              -> Fixtures: db_session, mock_analyzer, mock_topic_extractor, client (com LexiconFramingAnalyzer + LexiconSarcasmAnalyzer), auth_client
+├── conftest.py              -> Fixtures: db_session, mock_analyzer, mock_topic_extractor, client (com LexiconFramingAnalyzer + LexiconSarcasmAnalyzer + LexiconAspectAnalyzer), auth_client
+├── test_aspects.py          -> Testes do AspectAnalyzer (sentimento por entidade)
 ├── test_auth.py             -> Testes de autenticacao JWT e OAuth
 ├── test_dashboard.py        -> Testes de elementos HTML do dashboard
 ├── test_deps.py             -> Testes de injecao de dependencia
@@ -82,11 +85,11 @@ tests/
 ├── test_questions.py        -> Testes de deteccao de perguntas
 ├── test_repositories.py     -> Testes do repositorio de mensagens
 ├── test_report.py           -> Testes da fila de relatorios, geracao de PDF e template (inclui framing e sarcasmo)
-├── test_routes.py           -> 44 testes (todas as rotas incluindo topic-timeline, top-authors)
+├── test_routes.py           -> 44 testes (todas as rotas incluindo topic-timeline, top-authors, aspect-sentiment)
 ├── test_sarcasm.py          -> 10 testes do SarcasmAnalyzer, servico e rota
 ├── test_schemas.py          -> Testes dos schemas Pydantic
 ├── test_services.py         -> Testes do ChatService (sentiment timeline, peaks, topics, emojis)
-├── test_topics.py           -> Testes do _filter_tokens e TfidfTopicExtractor
+├── test_topics.py           -> Testes do _filter_tokens, TfidfTopicExtractor e expansao de stopwords
 ├── test_topic_sentiment.py  -> Testes do endpoint topic-sentiment com transcript
 ├── test_transcript.py       -> Testes do TranscriptService e find_snippet_at
 └── test_webhooks.py         -> Testes de CRUD e trigger de webhooks
@@ -94,7 +97,7 @@ tests/
 
 ## Decisoes de design
 
-- **Analisadores desacoplados:** Interfaces ABC para SentimentAnalyzer, TopicExtractor, EmojiExtractor, ModalityAnalyzer, EmotionAnalyzer, FramingAnalyzer, SarcasmAnalyzer — todos injetados por DI no ChatService via `app/api/deps.py`.
+- **Analisadores desacoplados:** Interfaces ABC para SentimentAnalyzer, TopicExtractor, EmojiExtractor, ModalityAnalyzer, EmotionAnalyzer, FramingAnalyzer, SarcasmAnalyzer, AspectAnalyzer — todos injetados por DI no ChatService via `app/api/deps.py`.
 - **Lexico de enquadramentos:** `FRAMING_LEXICON` mapeia palavras para listas de categorias (ataque, defesa, ironia, elogio, pergunta). O `LexiconFramingAnalyzer` inverte o mapeamento, compila regex por categoria, e usa `\b` para palavras simples e substring para expressoes. Mensagens sem match viram "neutro".
 - **Lexico de sarcasmo:** `SARCASM_LEXICON` com ~60 expressoes ironicas. `LexiconSarcasmAnalyzer` verifica presenca via regex case-insensitive e retorna `{"sarcastic": N, "non_sarcastic": M}`.
 - **Autenticacao JWT:** python-jose, tokens de 24h, providers local (bcrypt) e Google OAuth2. Token armazenado em **cookie HttpOnly** (`access_token`) — nao em localStorage. Rotas GET/POST protegidas com `get_current_user`. Logout via `POST /api/auth/logout` (deleta cookie).
@@ -107,9 +110,11 @@ tests/
 - **Type hints modernos:** Python 3.10+ sintaxe (`list[X]`, `X | None`, `dict[K,V]`).
 - **Regex para emojis:** `\p{Extended_Pictographic}` no modulo `regex` — evita capturar digitos (0-9) que o `\p{Emoji}` incluiria.
 - **Estatisticas de sentimento:** Media, desvio padrao e IC 95% calculados a partir dos compound scores do LeIA via `_compute_statistics`. Usa `1.96 * std/sqrt(n)` para o IC. Se `n < 2`, retorna `null` para `std_dev` e `ci_95`. Exposto via `analyze_with_compound()` no LeiaSentimentAnalyzer.
+- **Significancia estatistica na timeline:** Teste T de Welch entre buckets consecutivos de sentimento — destacando momentos de virada real (p < 0.05). Campos `significant_change`, `p_value`, `change_direction`, `change_magnitude` adicionados ao schema `TimelineBucket`.
+- **Sentimento por aspectos:** `LexiconAspectAnalyzer` detecta entidades (pessoas, marcas, termos do léxico `ASPECTS_LEXICON`) e calcula sentimento agregado (LeIA) para cada entidade encontrada.
 - **Visualizacao no dashboard:** Grafico de barras horizontal para enquadramentos; grafico de rosca (doughnut) para sarcasmo. Ambos com tooltip mostrando contagem e percentual.
 - **Relatorio PDF:** Ambos enriquecimento via `report_queue.py` — necessario adicionar cada novo analisador ao `ChatService` criado na thread background (mesmo problema recorrente com framing e sarcasmo).
-- **Test coverage:** 92%, com testes unitarios, de servico e de rota para cada novo analisador.
+- **Test coverage:** 93%, com testes unitarios, de servico e de rota para cada novo analisador.
 
 ## Endpoints
 
@@ -144,6 +149,7 @@ tests/
 | GET | /api/chat/{live_id}/questions | 🔒 | Perguntas frequentes detectadas |
 | GET | /api/chat/{live_id}/framing | 🔒 | Enquadramentos (ataque/defesa/ironia/elogio/pergunta/neutro) |
 | GET | /api/chat/{live_id}/sarcasm | 🔒 | Sarcasmo/ironia (sarcastic/non_sarcastic) |
+| GET | /api/chat/{live_id}/aspect-sentiment | 🔒 | Sentimento por aspectos/entidades |
 | **Relatorios** |
 | POST | /api/reports | 🔒 | Criar job de relatorio PDF |
 | GET | /api/reports/{job_id} | 🔒 | Status do job de relatorio |
@@ -260,6 +266,17 @@ tests/
 3. **report.py** — Fallback explicito de zeros para `framing` e `sarcasm` no contexto do template
 4. **report_html.py** — Templates refatorados para usar iteracao com `items()` em vez de keys hardcoded
 5. **Total: 182 testes, 92% de cobertura**
+
+### Fase 10 — Aspectos, significancia estatistica e expansao de stopwords
+1. **`app/services/aspects.py`** — `AspectAnalyzer` (ABC) + `LexiconAspectAnalyzer`: detecta entidades no texto e calcula sentimento agregado (LeIA) para cada entidade
+2. **`app/core/aspects_lexicon.py`** — Léxico de ~80 entidades/aspectos organizados por categoria (pessoas, marcas, termos técnicos)
+3. **Endpoint `GET /api/chat/{live_id}/aspect-sentiment`** — autenticado, aceita `entities` opcional via query, retorna sentimento por entidade
+4. **Significancia estatistica na timeline** — Teste T de Welch entre buckets consecutivos; campos `significant_change`, `p_value`, `change_direction`, `change_magnitude` no schema `TimelineBucket`; destaque visual no dashboard
+5. **Filtro por user_id** — todas as queries de leitura e escrita filtram por `user_id`; webhooks e relatorios verificam ownership
+6. **Landing page atualizada** — seção de funcionalidades expandida com framing, sarcasmo e aspectos
+7. **Expansao de stopwords** — ~110 novas entradas incluindo verbos de primeira pessoa (acho, acredito, agradecemos), verbos genericos (ver, falar, quer, fazer, saber, dizer) e pronomes/advérbios (coisa, gente, ainda, super, tudo, nada, algo)
+8. **Teste de validacao de lexicos** — `scripts/validate_lexicons.py` + `scripts/compute_lexicon_accuracy.py` para medir precisao real dos léxicos de sarcasmo e enquadramento
+9. **Total: 201 testes, 93% de cobertura**
 
 ## Comandos uteis
 
