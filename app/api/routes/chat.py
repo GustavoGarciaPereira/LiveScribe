@@ -17,6 +17,7 @@ from app.schemas.chat import (
     QuestionsResponse, QuestionItem,
     ModalityTimelineResponse, ModalityBucket,
     EmotionTimelineResponse, EmotionBucket,
+    FramingResponse,
 )
 from app.api.deps import get_chat_service, get_current_user
 from app.core.limiter import limiter
@@ -257,6 +258,22 @@ def modality_timeline(
         live_id=result["live_id"],
         interval_minutes=result["interval_minutes"],
         timeline=[ModalityBucket(**bucket) for bucket in result["timeline"]],
+    )
+
+
+@router.get("/{live_id}/framing", response_model=FramingResponse)
+def framing_analysis(
+    live_id: str,
+    user: User = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+):
+    result = service.framing_analysis(live_id, user_id=user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
+    return FramingResponse(
+        live_id=result["live_id"],
+        total_messages=result["total_messages"],
+        framing=result["framing"],
     )
 
 

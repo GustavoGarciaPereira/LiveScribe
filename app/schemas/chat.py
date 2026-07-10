@@ -194,3 +194,9 @@ class TopicSentimentItem(BaseModel):
 class TopicSentimentResponse(BaseModel):
     live_id: str
     topics: list[TopicSentimentItem]
+
+
+class FramingResponse(BaseModel):
+    live_id: str
+    total_messages: int
+    framing: dict[str, int]

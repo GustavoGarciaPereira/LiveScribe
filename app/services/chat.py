@@ -11,17 +11,19 @@ from app.services.topics import TopicExtractor
 from app.services.emojis import EmojiExtractor
 from app.services.modality import ModalityAnalyzer
 from app.services.emotion import EmotionAnalyzer
+from app.services.framing import FramingAnalyzer
 from sqlalchemy.orm import Session
 
 
 class ChatService:
-    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None, modality_analyzer: ModalityAnalyzer | None = None, emotion_analyzer: EmotionAnalyzer | None = None):
+    def __init__(self, db: Session, sentiment_analyzer: SentimentAnalyzer, topic_extractor: TopicExtractor | None = None, emoji_extractor: EmojiExtractor | None = None, modality_analyzer: ModalityAnalyzer | None = None, emotion_analyzer: EmotionAnalyzer | None = None, framing_analyzer: FramingAnalyzer | None = None):
         self.db = db
         self.sentiment_analyzer = sentiment_analyzer
         self.topic_extractor = topic_extractor
         self.emoji_extractor = emoji_extractor
         self.modality_analyzer = modality_analyzer
         self.emotion_analyzer = emotion_analyzer
+        self.framing_analyzer = framing_analyzer
 
     @staticmethod
     def _bucket_messages(messages: list, interval_minutes: int) -> list[dict]:
@@ -406,6 +408,27 @@ class ChatService:
             "live_id": live_id,
             "total_emojis": sum(e["count"] for e in emojis),
             "emojis": emojis,
+        }
+
+    def framing_analysis(self, live_id: str, user_id: int | None = None) -> dict | None:
+        messages = list_messages_by_live(self.db, live_id, user_id=user_id)
+        texts = [m.message for m in messages]
+
+        if not texts:
+            return None
+
+        if self.framing_analyzer is None:
+            return {
+                "live_id": live_id,
+                "total_messages": len(texts),
+                "framing": {"ataque": 0, "defesa": 0, "ironia": 0, "elogio": 0, "pergunta": 0, "neutro": len(texts)},
+            }
+
+        framing = self.framing_analyzer.analyze(texts)
+        return {
+            "live_id": live_id,
+            "total_messages": len(texts),
+            "framing": framing,
         }
 
     def topic_sentiment(self, live_id: str, top_n: int = 10, user_id: int | None = None, video_id: str | None = None) -> dict | None:
