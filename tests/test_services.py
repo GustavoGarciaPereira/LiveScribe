@@ -347,3 +347,28 @@ def test_platform_explicit(db_session, mock_analyzer, mock_topic_extractor):
     svc = ChatService(db_session, mock_analyzer, mock_topic_extractor)
     msg = svc.save_message("live1", "A", "msg", platform="twitch")
     assert msg.platform == "twitch"
+
+
+def test_user_isolation(db_session, mock_analyzer):
+    """Usuarios diferentes veem apenas suas proprias mensagens."""
+    svc = ChatService(db_session, mock_analyzer)
+    # Usuario 1 salva 2 mensagens
+    svc.save_message("live-iso", "A", "msg user1", user_id=1)
+    svc.save_message("live-iso", "B", "outra msg user1", user_id=1)
+    # Usuario 2 salva 1 mensagem
+    svc.save_message("live-iso", "C", "msg user2", user_id=2)
+
+    # User 1 ve 2 mensagens via list_lives
+    lives_1 = svc.list_lives(user_id=1)
+    assert len(lives_1) == 1
+    assert lives_1[0]["total_messages"] == 2
+
+    # User 2 ve 1 mensagem
+    lives_2 = svc.list_lives(user_id=2)
+    assert len(lives_2) == 1
+    assert lives_2[0]["total_messages"] == 1
+
+    # Sem user_id (= None) nao filtra — mostra todas
+    lives_none = svc.list_lives(user_id=None)
+    assert len(lives_none) == 1
+    assert lives_none[0]["total_messages"] == 3  # todas as mensagens
