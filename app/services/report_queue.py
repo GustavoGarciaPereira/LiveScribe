@@ -20,6 +20,7 @@ from app.services.modality import LexiconModalityAnalyzer
 from app.services.emotion import LexiconEmotionAnalyzer
 from app.services.framing import LexiconFramingAnalyzer
 from app.services.sarcasm import LexiconSarcasmAnalyzer
+from app.services.aspects import LexiconAspectAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,8 @@ class ReportQueue:
                 emotion = LexiconEmotionAnalyzer()
                 framing = LexiconFramingAnalyzer()
                 sarcasm = LexiconSarcasmAnalyzer()
-                chat_service = ChatService(db, sentiment, topic, emoji, modality, emotion, framing, sarcasm)
+                aspect = LexiconAspectAnalyzer()
+                chat_service = ChatService(db, sentiment, topic, emoji, modality, emotion, framing, sarcasm, aspect)
 
                 job.progress = 30
                 # Recarrega o modulo report.py para evitar cache do worker thread
