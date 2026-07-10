@@ -1,8 +1,9 @@
 import base64
 import io
 import json
+import logging
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.core.timezone import now as now_local
 
@@ -14,6 +15,9 @@ import matplotlib.ticker as ticker
 from app.repositories.messages import list_messages_by_live
 from app.services.chat import ChatService
 
+logger = logging.getLogger(__name__)
+
+MAX_DURATION_HOURS = 12
 
 class ReportService:
     def __init__(self, chat_service: ChatService):
@@ -53,7 +57,16 @@ class ReportService:
         if messages:
             first_msg = messages[0].created_at
             last_msg = messages[-1].created_at
-            duration = str(last_msg - first_msg).split(".")[0]
+            raw_duration = last_msg - first_msg
+            if raw_duration.total_seconds() > MAX_DURATION_HOURS * 3600:
+                logger.warning(
+                    f"Duracao anomala para live_id={live_id}: {raw_duration} "
+                    f"(primeira msg={first_msg}, ultima msg={last_msg}, "
+                    f"total_msgs={total_messages}). Usando fallback."
+                )
+                duration = "Duracao indisponivel"
+            else:
+                duration = str(raw_duration).split(".")[0]
         else:
             first_msg = None
             last_msg = None

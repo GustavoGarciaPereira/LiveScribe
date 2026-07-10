@@ -226,6 +226,62 @@ def test_report_template_has_aspects_section():
     assert "4 (50%)" in source
 
 
+def test_report_duration_normal(db_session, mock_analyzer, monkeypatch):
+    """Duracao normal (dentro de 12h) aparece formatada corretamente."""
+    from datetime import datetime, timezone, timedelta
+    from app.models.message import Message
+
+    svc = ChatService(db_session, mock_analyzer)
+    base = datetime.now(timezone.utc)
+    # Cria ambas as mensagens com timestamps explicitos (diferenca de 30 min)
+    db_session.add(Message(live_id="live-dur", author="A", message="msg1",
+                            created_at=base, user_id=1))
+    db_session.add(Message(live_id="live-dur", author="B", message="msg2",
+                            created_at=base + timedelta(minutes=30), user_id=1))
+    db_session.commit()
+
+    captured = {}
+    import app.templates.report_html as rh
+    orig_render = rh.report_html.render
+    def spy_render(context):
+        captured["ctx"] = context
+        return orig_render(context)
+    monkeypatch.setattr(rh.report_html, "render", spy_render)
+
+    report_svc = ReportService(svc)
+    pdf_bytes = report_svc.generate_pdf("live-dur", user_id=1)
+    assert captured["ctx"]["duration"] == "0:30:00"
+    assert isinstance(pdf_bytes, bytes)
+
+
+def test_report_duration_anomalous(db_session, mock_analyzer, monkeypatch):
+    """Duracao > 12h exibe 'Duracao indisponivel' e loga warning."""
+    from datetime import datetime, timezone, timedelta
+    from app.models.message import Message
+
+    svc = ChatService(db_session, mock_analyzer)
+    base = datetime.now(timezone.utc)
+    # Cria mensagens com 8 dias de diferenca
+    db_session.add(Message(live_id="live-long", author="A", message="msg1",
+                            created_at=base, user_id=1))
+    db_session.add(Message(live_id="live-long", author="B", message="msg2",
+                            created_at=base + timedelta(days=8), user_id=1))
+    db_session.commit()
+
+    captured = {}
+    import app.templates.report_html as rh
+    orig_render = rh.report_html.render
+    def spy_render(context):
+        captured["ctx"] = context
+        return orig_render(context)
+    monkeypatch.setattr(rh.report_html, "render", spy_render)
+
+    report_svc = ReportService(svc)
+    pdf_bytes = report_svc.generate_pdf("live-long", user_id=1)
+    assert captured["ctx"]["duration"] == "Duracao indisponivel"
+    assert isinstance(pdf_bytes, bytes)
+
+
 class TestReportRoutes:
     def test_create_report_requires_auth(self, client):
         resp = client.post("/api/reports?live_id=test-live")
