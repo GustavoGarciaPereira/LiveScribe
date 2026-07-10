@@ -136,6 +136,25 @@ _REPORT_TEMPLATE = Template("""<!DOCTYPE html>
 <p class="empty-msg">Nenhum dado de sarcasmo disponivel.</p>
 {% endif %}
 
+<h3>Sentimento por Aspectos</h3>
+{% if aspects %}
+<table>
+  <tr><th>Entidade</th><th>Mensagens</th><th>Positivo</th><th>Negativo</th><th>Neutro</th></tr>
+  {% for entity, data in aspects.items() if data.messages > 0 %}
+  {% set total_asp = data.sentiment.Positivo + data.sentiment.Negativo + data.sentiment.Neutro %}
+  <tr>
+    <td><strong>{{ entity }}</strong></td>
+    <td>{{ data.messages }}</td>
+    <td class="positive">{{ data.sentiment.Positivo }} {% if total_asp > 0 %}({{ (data.sentiment.Positivo / total_asp * 100) | round(0) | int }}%){% endif %}</td>
+    <td class="negative">{{ data.sentiment.Negativo }} {% if total_asp > 0 %}({{ (data.sentiment.Negativo / total_asp * 100) | round(0) | int }}%){% endif %}</td>
+    <td class="neutral">{{ data.sentiment.Neutro }} {% if total_asp > 0 %}({{ (data.sentiment.Neutro / total_asp * 100) | round(0) | int }}%){% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="empty-msg">Nenhum dado de sentimento por aspectos disponivel.</p>
+{% endif %}
+
 <!-- ===== Paginas 2-4: Analise Detalhada ===== -->
 <div class="section">
 <h2>2. Analise Detalhada</h2>

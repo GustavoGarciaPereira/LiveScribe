@@ -156,6 +156,15 @@
             <canvas id="sarcasm-chart"></canvas>
         </div>
         <div class="card">
+            <h2>🎯 Sentimento por Aspectos</h2>
+            <div style="margin-bottom:0.5rem;">
+                <input type="text" id="aspect-entities-input" placeholder="Filtrar entidades (ex: bruno,breno)" style="width:100%; max-width:300px; background:#334155; border:1px solid #475569; color:#e2e8f0; padding:0.35rem 0.6rem; border-radius:6px; font-size:0.85rem;">
+                <button id="aspect-apply" style="font-size:0.8rem; padding:0.35rem 0.7rem; margin-left:0.25rem;">Buscar</button>
+            </div>
+            <div id="aspects-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+            <canvas id="aspects-chart"></canvas>
+        </div>
+        <div class="card">
             <h2>Exportar dados</h2>
             <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
             <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
@@ -173,7 +182,7 @@ function getHeaders() {
     return {};
 }
 
-let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart, framingChart, sarcasmChart;
+let timelineChart, peaksChart, wordsChart, topicsChart, emojisChart, termTimelineChart, modalityChart, emotionChart, topicSentimentChart, framingChart, sarcasmChart, aspectsChart;
 
 let livesData = [];
 let cachedData = {};
@@ -269,6 +278,7 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadSentimentSummary(liveId),
         loadFraming(liveId),
         loadSarcasm(liveId),
+        loadAspects(liveId),
     ]);
 });
 
@@ -875,6 +885,55 @@ function renderSarcasm() {
         }
     });
 }
+
+async function loadAspects(liveId) {
+    const entities = document.getElementById('aspect-entities-input').value.trim();
+    let url = API + '/' + liveId + '/aspect-sentiment';
+    if (entities) url += '?entities=' + encodeURIComponent(entities);
+    try {
+        const res = await fetch(url, { headers: getHeaders() });
+        const data = await res.json();
+        cachedData.aspects = data;
+        renderAspects();
+    } catch (e) { showEmpty('aspects', true); }
+}
+
+function renderAspects() {
+    const data = cachedData.aspects;
+    if (!data || !data.aspects || Object.keys(data.aspects).length === 0) {
+        showEmpty('aspects', true);
+        return;
+    }
+    showEmpty('aspects', false);
+    const entities = Object.keys(data.aspects).filter(e => data.aspects[e].messages > 0);
+    if (entities.length === 0) { showEmpty('aspects', true); return; }
+    const labels = entities;
+    const pos = entities.map(e => data.aspects[e].sentiment.Positivo || 0);
+    const neg = entities.map(e => data.aspects[e].sentiment.Negativo || 0);
+    const neu = entities.map(e => data.aspects[e].sentiment.Neutro || 0);
+    if (aspectsChart) aspectsChart.destroy();
+    aspectsChart = new Chart(document.getElementById('aspects-chart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Positivo', data: pos, backgroundColor: '#22c55e' },
+                { label: 'Negativo', data: neg, backgroundColor: '#ef4444' },
+                { label: 'Neutro', data: neu, backgroundColor: '#94a3b8' },
+            ]
+        },
+        options: {
+            responsive: true,
+            indexAxis: 'y',
+            scales: { x: { stacked: true }, y: { stacked: true } },
+        }
+    });
+}
+
+document.getElementById('aspect-apply').addEventListener('click', () => {
+    const liveId = document.getElementById('live-select').value;
+    if (liveId) loadAspects(liveId);
+});
 
 function applyFilters() {
     currentFilters.sentiment = document.getElementById('filter-sentiment').value;

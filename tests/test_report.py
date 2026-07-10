@@ -204,6 +204,28 @@ def test_report_template_has_sarcasm_section():
     assert "90.0%" in source
 
 
+def test_report_template_has_aspects_section():
+    """O template do relatorio contem secao de Sentimento por Aspectos."""
+    from app.templates.report_html import report_html
+    source = report_html.render({
+        "live_id": "test", "total_messages": 50, "unique_authors": 5,
+        "first_msg": "", "last_msg": "", "duration": "00:30:00",
+        "sentiment_summary": {}, "word_freq": [], "topics": [],
+        "topic_sentiment": [], "authors": [], "questions": [], "emojis": [],
+        "framing": {}, "sarcasm": {"sarcastic": 0, "non_sarcastic": 50},
+        "aspects": {
+            "bruno": {"messages": 10, "sentiment": {"Positivo": 5, "Negativo": 2, "Neutro": 3}},
+            "breno": {"messages": 8, "sentiment": {"Positivo": 4, "Negativo": 2, "Neutro": 2}},
+        },
+        "charts": {}, "generated_at": "",
+    })
+    assert "Sentimento por Aspectos" in source
+    assert "bruno" in source
+    assert "breno" in source
+    assert "5 (50%)" in source
+    assert "4 (50%)" in source
+
+
 class TestReportRoutes:
     def test_create_report_requires_auth(self, client):
         resp = client.post("/api/reports?live_id=test-live")
