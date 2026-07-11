@@ -32,43 +32,66 @@ class TestDashboard:
         assert "term-tags-container" in html
 
     def test_contains_new_js_functions(self, client):
+        """Os nomes das funcoes JS devem estar no arquivo dashboard.js carregado."""
         response = client.get("/dashboard")
         html = response.text
-        assert "loadEmojis" in html
-        assert "loadTopAuthors" in html
-        assert "loadTermTimeline" in html
-        assert "exportData" in html
-        assert "requestPdfReport" in html
-        assert "loadQuestions" in html
-        assert "loadModalityTimeline" in html
-        assert "loadEmotionTimeline" in html
-        assert "loadFraming" in html
-        assert "loadSarcasm" in html
-        assert "loadAspects" in html
+        # Verifica que o JS externo eh carregado
+        assert "src=\"/static/js/dashboard.js\"" in html
+        assert "defer" in html
+        # Os nomes das funcoes estao no .js, nao no HTML — verificamos o arquivo
+        import os
+        js_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'js', 'dashboard.js')
+        with open(js_path) as f:
+            js = f.read()
+        assert "loadEmojis" in js
+        assert "loadTopAuthors" in js
+        assert "loadTermTimeline" in js
+        assert "exportData" in js
+        assert "requestPdfReport" in js
+        assert "loadQuestions" in js
+        assert "loadModalityTimeline" in js
+        assert "loadEmotionTimeline" in js
+        assert "loadFraming" in js
+        assert "loadSarcasm" in js
+        assert "loadAspects" in js
 
     def test_contains_ux_improvements(self, client):
+        """Elementos de UX devem estar presentes no HTML (classes CSS e IDs)."""
         response = client.get("/dashboard")
         html = response.text
-        assert "badge-live" in html
-        assert "badge-ended" in html
+        import os
+        css_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'css', 'dashboard.css')
+        with open(css_path) as f:
+            css = f.read()
+        assert "badge-live" in css
+        assert "badge-ended" in css
         assert "empty-state" in html
-        assert "showEmpty" in html
-        assert "applyFilters" in html
-        assert "addTermTag" in html
-        assert "removeTermTag" in html
-        assert "renderTermTags" in html
-        assert "renderQuestions" in html
         assert "filter-sentiment" in html
         assert "filter-time-start" in html
         assert "filter-time-end" in html
         assert "filter-apply-btn" in html
         assert "sentiment-stats" in html
-        assert "loadSentimentSummary" in html
-        assert "renderSentimentStats" in html
-        assert "significant_change" in html
+        # Verifica que as funcoes JS estao no arquivo externo
+        js_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'js', 'dashboard.js')
+        with open(js_path) as f:
+            js = f.read()
+        assert "significant_change" in js
+        assert "showEmpty" in js
+        assert "applyFilters" in js
+        assert "addTermTag" in js
+        assert "removeTermTag" in js
+        assert "renderTermTags" in js
+        assert "renderQuestions" in js
+        assert "loadSentimentSummary" in js
+        assert "renderSentimentStats" in js
 
     def test_contains_get_headers_function(self, client):
-        """getHeaders precisa estar declarada no escopo global antes de ser usada."""
+        """getHeaders precisa estar declarada no escopo global no dashboard.js."""
         response = client.get("/dashboard")
         html = response.text
-        assert "function getHeaders" in html
+        assert "src=\"/static/js/dashboard.js\"" in html
+        import os
+        js_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'js', 'dashboard.js')
+        with open(js_path) as f:
+            js = f.read()
+        assert "function getHeaders" in js
