@@ -119,6 +119,20 @@ async function main() {
     results.loginFormVisibleAfterLoadLives = !document.getElementById('login-form')._classes.has('hidden');
     results.dataSectionHiddenAfterLoadLives = document.getElementById('data-section')._classes.has('hidden');
 
+    // ── Cenario: logout deve limpar estado residual de uma sessao anterior
+    // (stats-footer fica fora de #data-section, e os campos de login
+    // mantinham o valor digitado por nao haver reload de pagina numa SPA).
+    const footer = document.getElementById('stats-footer');
+    footer.classList.remove('hidden');
+    document.getElementById('login-email').value = 'gustavo@test.com';
+    document.getElementById('login-password').value = 'secret123';
+
+    sandbox.setAuthUI(false);
+
+    results.footerHiddenAfterLogout = footer._classes.has('hidden');
+    results.loginEmailClearedAfterLogout = document.getElementById('login-email').value === '';
+    results.loginPasswordClearedAfterLogout = document.getElementById('login-password').value === '';
+
     console.log(JSON.stringify(results));
 }
 

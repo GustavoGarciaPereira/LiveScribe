@@ -10,7 +10,10 @@ function getHeaders() {
 // e handleUnauthorized() (qualquer fetch autenticado que responda 401)
 // convergem para ca, evitando estados dessincronizados ("Logado como X"
 // e o formulario de login visiveis ao mesmo tempo).
+let isAuthenticated = false;
+
 function setAuthUI(loggedIn, email) {
+    isAuthenticated = loggedIn;
     if (loggedIn) {
         loginForm.classList.add('hidden');
         userInfo.classList.remove('hidden');
@@ -21,6 +24,19 @@ function setAuthUI(loggedIn, email) {
         userInfo.classList.add('hidden');
         dataSection.classList.add('hidden');
         hideLoading();
+
+        // stats-footer fica fora de #data-section (eh fixo na base da
+        // pagina), entao precisa ser escondido explicitamente — senao os
+        // numeros da ultima live carregada ficam visiveis apos o logout.
+        const footer = document.getElementById('stats-footer');
+        if (footer) footer.classList.add('hidden');
+
+        // Limpa credenciais digitadas: como isso eh uma SPA (sem reload de
+        // pagina), os campos mantinham o valor anterior apos o logout.
+        const emailInput = document.getElementById('login-email');
+        const passwordInput = document.getElementById('login-password');
+        if (emailInput) emailInput.value = '';
+        if (passwordInput) passwordInput.value = '';
     }
 }
 
@@ -247,6 +263,9 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         loadSarcasm(liveId),
         loadAspects(liveId),
     ]);
+    // Se o usuario deslogou enquanto as analises ainda carregavam, nao
+    // reexibe loading/rodape com dados de uma sessao que ja terminou.
+    if (!isAuthenticated) return;
     hideLoading();
     updateFooterStats(liveId);
 });

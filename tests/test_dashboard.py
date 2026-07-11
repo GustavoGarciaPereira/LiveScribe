@@ -168,3 +168,11 @@ class TestDashboardSessionHandling:
         # 401) rodar — nunca "Logado como X" e login form ao mesmo tempo.
         assert data["loginFormVisibleAfterLoadLives"] is True
         assert data["dataSectionHiddenAfterLoadLives"] is True
+
+        # setAuthUI(false) (chamado no logout) precisa limpar estado
+        # residual: #stats-footer fica fora de #data-section (nao eh
+        # escondido so por isso) e os campos de login mantinham o valor
+        # digitado anteriormente por nao haver reload de pagina na SPA.
+        assert data["footerHiddenAfterLogout"] is True
+        assert data["loginEmailClearedAfterLogout"] is True
+        assert data["loginPasswordClearedAfterLogout"] is True
