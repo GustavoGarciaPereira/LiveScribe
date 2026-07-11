@@ -1,5 +1,15 @@
 """Testes para o dashboard HTML."""
 
+import json
+import os
+import shutil
+import subprocess
+
+import pytest
+
+JS_PATH = os.path.join(os.path.dirname(__file__), "..", "app", "static", "js", "dashboard.js")
+HARNESS_PATH = os.path.join(os.path.dirname(__file__), "_dashboard_auth_harness.js")
+
 
 class TestDashboard:
     def test_returns_200(self, client):
@@ -95,3 +105,66 @@ class TestDashboard:
         with open(js_path) as f:
             js = f.read()
         assert "function getHeaders" in js
+
+
+class TestDashboardSessionHandling:
+    """Cobre a perda de sessao no F5 e o tratamento de 401 no dashboard.js.
+
+    Contexto do bug: fetch() para /api/chat/lives e /api/auth/me nao
+    enviava `credentials`, e loadLives() nao checava o status da resposta
+    antes de repassar o corpo para renderLiveOptions(), que chamava
+    .forEach() em algo que nao era array quando a API respondia 401 —
+    lancando TypeError e deixando a UI (login + dashboard) dessincronizada.
+    """
+
+    def test_authenticated_fetches_send_credentials(self):
+        with open(JS_PATH) as f:
+            js = f.read()
+        assert "credentials: 'same-origin'" in js
+        assert "async function apiFetch(" in js
+
+    def test_single_source_of_truth_for_auth_ui(self):
+        with open(JS_PATH) as f:
+            js = f.read()
+        assert "function setAuthUI(" in js
+        # checkAuthState (resultado de /api/auth/me) e o handler de 401
+        # de qualquer fetch autenticado devem convergir para setAuthUI().
+        assert "setAuthUI(true" in js
+        assert "setAuthUI(false)" in js
+
+    def test_stray_unconditional_loadLives_call_was_removed(self):
+        """loadLives() so pode ser chamada depois de checkAuthState() confirmar
+        a sessao — a chamada solta no topo do script (antes de qualquer
+        checagem de auth) era a causa raiz do 401 nao tratado."""
+        with open(JS_PATH) as f:
+            js = f.read()
+        assert "renderTermTags();\nloadLives();" not in js
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js nao disponivel neste ambiente")
+    def test_dashboard_handles_401_without_throwing(self):
+        """Executa o dashboard.js real (via Node) com /api/auth/me e
+        /api/chat/lives mockados para responder 401, e confirma que:
+        - checkAuthState() e loadLives() nao lancam excecao;
+        - a UI converge para o estado 'nao autenticado' (login visivel,
+          user-info e dashboard escondidos) de forma consistente, mesmo
+          depois de loadLives() rodar.
+        """
+        result = subprocess.run(
+            ["node", HARNESS_PATH, JS_PATH],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 0, f"harness falhou: {result.stderr}"
+        data = json.loads(result.stdout.strip().splitlines()[-1])
+
+        assert data["checkAuthStateThrew"] is False, data.get("checkAuthStateError")
+        assert data["loadLivesThrew"] is False, data.get("loadLivesError")
+
+        # Estado apos checkAuthState(): apenas o formulario de login visivel.
+        assert data["loginFormVisible"] is True
+        assert data["userInfoHidden"] is True
+        assert data["dataSectionHidden"] is True
+
+        # Estado permanece consistente apos loadLives() (que tambem recebeu
+        # 401) rodar — nunca "Logado como X" e login form ao mesmo tempo.
+        assert data["loginFormVisibleAfterLoadLives"] is True
+        assert data["dataSectionHiddenAfterLoadLives"] is True

@@ -4,6 +4,55 @@ function getHeaders() {
     return {};
 }
 
+// ── Sessao / autenticacao: fonte unica de verdade ──────────────────
+// setAuthUI() eh o UNICO lugar que alterna a visibilidade de login-form /
+// user-info / data-section. checkAuthState() (resultado de /api/auth/me)
+// e handleUnauthorized() (qualquer fetch autenticado que responda 401)
+// convergem para ca, evitando estados dessincronizados ("Logado como X"
+// e o formulario de login visiveis ao mesmo tempo).
+function setAuthUI(loggedIn, email) {
+    if (loggedIn) {
+        loginForm.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        displayEmail.textContent = email || '';
+        dataSection.classList.remove('hidden');
+    } else {
+        loginForm.classList.remove('hidden');
+        userInfo.classList.add('hidden');
+        dataSection.classList.add('hidden');
+        hideLoading();
+    }
+}
+
+let authCheckInFlight = null;
+
+// Reavalia o estado de autenticacao (via checkAuthState) quando qualquer
+// chamada autenticada retorna 401. Deduplicado para nao disparar N
+// requisicoes simultaneas a /api/auth/me quando varios cards falham juntos.
+function handleUnauthorized() {
+    if (!authCheckInFlight) {
+        authCheckInFlight = checkAuthState().finally(() => { authCheckInFlight = null; });
+    }
+    return authCheckInFlight;
+}
+
+// Wrapper de fetch para todos os endpoints autenticados do dashboard.
+// `credentials: 'same-origin'` garante que o cookie httpOnly access_token
+// seja enviado mesmo apos reload/navegacao direta. Um 401 aciona
+// handleUnauthorized() automaticamente, entao os chamadores so precisam
+// checar `res.ok` para decidir como renderizar o proprio card.
+async function apiFetch(url, options = {}) {
+    const res = await fetch(url, {
+        ...options,
+        credentials: 'same-origin',
+        headers: { ...getHeaders(), ...(options.headers || {}) },
+    });
+    if (res.status === 401) {
+        handleUnauthorized();
+    }
+    return res;
+}
+
 // ── Design tokens (mirrors CSS custom properties in dashboard.css) ─
 function cssVar(name, fallback) {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name);
@@ -120,10 +169,19 @@ function matchesTimeFilter(timeStr) {
 }
 
 async function loadLives() {
-    const res = await fetch(`${API}/lives`, { headers: getHeaders() });
-    const data = await res.json();
-    livesData = data.lives;
-    renderLiveOptions('');
+    try {
+        const res = await apiFetch(`${API}/lives`);
+        if (!res.ok) {
+            // 401 ja foi tratado por apiFetch (handleUnauthorized esconde o
+            // dashboard); qualquer outro erro so evita renderizar lives.
+            return;
+        }
+        const data = await res.json();
+        livesData = Array.isArray(data.lives) ? data.lives : [];
+        renderLiveOptions('');
+    } catch (e) {
+        livesData = [];
+    }
 }
 
 function renderLiveOptions(filter) {
@@ -131,7 +189,7 @@ function renderLiveOptions(filter) {
     const current = select.value;
     select.innerHTML = '<option value="">-- Selecione uma live --</option>';
     const f = filter.toLowerCase();
-    livesData.forEach(l => {
+    (Array.isArray(livesData) ? livesData : []).forEach(l => {
         if (f && !l.live_id.toLowerCase().includes(f)) return;
         select.innerHTML += `<option value="${escapeHtml(l.live_id)}">${escapeHtml(l.live_id)} (${l.total_messages} msgs)</option>`;
     });
@@ -232,7 +290,8 @@ function applyTimeFilters(timeline) {
 async function loadTimeline(liveId) {
     renderLoadingState('timeline');
     try {
-        const res = await fetch(`${API}/${liveId}/sentiment-timeline?interval_minutes=5&sentiment_filter=${currentFilters.sentiment}&time_start=${currentFilters.timeStart}&time_end=${currentFilters.timeEnd}`, { headers: getHeaders() });
+        const res = await apiFetch(`${API}/${liveId}/sentiment-timeline?interval_minutes=5&sentiment_filter=${currentFilters.sentiment}&time_start=${currentFilters.timeStart}&time_end=${currentFilters.timeEnd}`);
+        if (!res.ok) { showEmpty('timeline', true); return; }
         const data = await res.json();
         cachedData.timeline = data;
         renderTimeline();
@@ -303,7 +362,12 @@ function renderTimeline() {
 
 async function loadSentimentSummary(liveId) {
     try {
-        const res = await fetch(`${API}/${liveId}/sentiment`, { headers: getHeaders() });
+        const res = await apiFetch(`${API}/${liveId}/sentiment`);
+        if (!res.ok) {
+            const el = document.getElementById('sentiment-stats');
+            if (el) el.classList.add('hidden');
+            return;
+        }
         const data = await res.json();
         cachedData.sentimentSummary = data;
         renderSentimentStats();
@@ -332,7 +396,8 @@ function renderSentimentStats() {
 async function loadPeaks(liveId) {
     renderLoadingState('peaks');
     try {
-        const res = await fetch(`${API}/${liveId}/engagement-peaks?top_n=10&window_minutes=1`, { headers: getHeaders() });
+        const res = await apiFetch(`${API}/${liveId}/engagement-peaks?top_n=10&window_minutes=1`);
+        if (!res.ok) { showEmpty('peaks', true); return; }
         const data = await res.json();
         cachedData.peaks = data;
         renderPeaks();
@@ -360,7 +425,8 @@ function renderPeaks() {
 async function loadWords(liveId) {
     renderLoadingState('words');
     try {
-        const res = await fetch(`${API}/${liveId}/word-frequency?top_n=10`, { headers: getHeaders() });
+        const res = await apiFetch(`${API}/${liveId}/word-frequency?top_n=10`);
+        if (!res.ok) { showEmpty('words', true); return; }
         const data = await res.json();
         cachedData.words = data;
         renderWords();
@@ -386,7 +452,8 @@ function renderWords() {
 async function loadTopics(liveId) {
     renderLoadingState('topics');
     try {
-        const res = await fetch(`${API}/${liveId}/topics?top_n=10`, { headers: getHeaders() });
+        const res = await apiFetch(`${API}/${liveId}/topics?top_n=10`);
+        if (!res.ok) { showEmpty('topics', true); return; }
         const data = await res.json();
         cachedData.topics = data;
         renderTopics();
@@ -412,7 +479,8 @@ function renderTopics() {
 async function loadEmojis(liveId) {
     renderLoadingState('emojis');
     try {
-        const res = await fetch(API + '/' + liveId + '/emojis?top_n=10', { headers: getHeaders() });
+        const res = await apiFetch(API + '/' + liveId + '/emojis?top_n=10');
+        if (!res.ok) { showEmpty('emojis', true); return; }
         const data = await res.json();
         cachedData.emojis = data;
         renderEmojis();
@@ -439,7 +507,8 @@ function renderEmojis() {
 async function loadTopAuthors(liveId) {
     renderLoadingState('authors');
     try {
-        const res = await fetch(API + '/' + liveId + '/top-authors?top_n=20', { headers: getHeaders() });
+        const res = await apiFetch(API + '/' + liveId + '/top-authors?top_n=20');
+        if (!res.ok) { showEmpty('authors', true); return; }
         const data = await res.json();
         cachedData.authors = data;
         renderAuthors();
@@ -474,9 +543,11 @@ async function loadTermTimeline(liveId) {
     renderLoadingState('term-timeline');
     cachedData.termTimelines = {};
     try {
-        const results = await Promise.all(activeTerms.map(term =>
-            fetch(API + '/' + liveId + '/topic-timeline?term=' + encodeURIComponent(term) + '&interval_minutes=5', { headers: getHeaders() }).then(r => r.json())
-        ));
+        const results = await Promise.all(activeTerms.map(async term => {
+            const r = await apiFetch(API + '/' + liveId + '/topic-timeline?term=' + encodeURIComponent(term) + '&interval_minutes=5');
+            if (!r.ok) throw new Error('Falha ao carregar evolucao do termo ' + term);
+            return r.json();
+        }));
         const colors = [COLORS.accent, COLORS.accent2, COLORS.accent3, COLORS.positive, COLORS.negative, COLORS.accent4, COLORS.accent5, COLORS.accent6];
         const datasets = [];
         results.forEach((data, i) => {
@@ -532,7 +603,8 @@ function renderTermTags() {
 async function loadQuestions(liveId) {
     renderLoadingState('questions');
     try {
-        const res = await fetch(API + '/' + liveId + '/questions?min_length=10', { headers: getHeaders() });
+        const res = await apiFetch(API + '/' + liveId + '/questions?min_length=10');
+        if (!res.ok) { showEmpty('questions', true); return; }
         const data = await res.json();
         cachedData.questions = data;
         renderQuestions();
@@ -595,7 +667,8 @@ document.getElementById('questions-search').addEventListener('input', debounce(f
 async function loadModalityTimeline(liveId) {
     renderLoadingState('modality');
     try {
-        const res = await fetch(API + '/' + liveId + '/modality-timeline?interval_minutes=5', { headers: getHeaders() });
+        const res = await apiFetch(API + '/' + liveId + '/modality-timeline?interval_minutes=5');
+        if (!res.ok) { showEmpty('modality', true); return; }
         const data = await res.json();
         cachedData.modality = data;
         renderModality();
@@ -630,7 +703,8 @@ function renderModality() {
 async function loadEmotionTimeline(liveId) {
     renderLoadingState('emotion');
     try {
-        const res = await fetch(API + '/' + liveId + '/emotion-timeline?interval_minutes=1', { headers: getHeaders() });
+        const res = await apiFetch(API + '/' + liveId + '/emotion-timeline?interval_minutes=1');
+        if (!res.ok) { showEmpty('emotion', true); return; }
         const data = await res.json();
         cachedData.emotion = data;
         renderEmotion();
@@ -671,7 +745,8 @@ async function loadTopicSentiment(liveId) {
     if (videoId) url += '&video_id=' + encodeURIComponent(videoId);
     renderLoadingState('topic-sentiment');
     try {
-        const res = await fetch(url, { headers: getHeaders() });
+        const res = await apiFetch(url);
+        if (!res.ok) { showEmpty('topic-sentiment', true); return; }
         const data = await res.json();
         cachedData.topicSentiment = data;
         renderTopicSentiment();
@@ -740,7 +815,8 @@ function renderTopicSentiment() {
 async function loadFraming(liveId) {
     renderLoadingState('framing');
     try {
-        const res = await fetch(API + '/' + liveId + '/framing', { headers: getHeaders() });
+        const res = await apiFetch(API + '/' + liveId + '/framing');
+        if (!res.ok) { showEmpty('framing', true); return; }
         const data = await res.json();
         cachedData.framing = data;
         renderFraming();
@@ -794,7 +870,8 @@ function renderFraming() {
 async function loadSarcasm(liveId) {
     renderLoadingState('sarcasm');
     try {
-        const res = await fetch(API + '/' + liveId + '/sarcasm', { headers: getHeaders() });
+        const res = await apiFetch(API + '/' + liveId + '/sarcasm');
+        if (!res.ok) { showEmpty('sarcasm', true); return; }
         const data = await res.json();
         cachedData.sarcasm = data;
         renderSarcasm();
@@ -846,7 +923,8 @@ async function loadAspects(liveId) {
     if (entities) url += '?entities=' + encodeURIComponent(entities);
     renderLoadingState('aspects');
     try {
-        const res = await fetch(url, { headers: getHeaders() });
+        const res = await apiFetch(url);
+        if (!res.ok) { showEmpty('aspects', true); return; }
         const data = await res.json();
         cachedData.aspects = data;
         renderAspects();
@@ -910,7 +988,7 @@ async function exportData(format) {
     try {
         const endpoint = API + '/' + liveId + '/export?format=' + format;
         const ext = format === 'xlsx' ? 'xlsx' : format;
-        const res = await fetch(endpoint, { headers: getHeaders() });
+        const res = await apiFetch(endpoint);
         if (!res.ok) { alert('Erro ao exportar: ' + res.status); return; }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -935,9 +1013,8 @@ async function requestPdfReport() {
 
     try {
         // 1. Criar job
-        const createRes = await fetch('/api/reports?live_id=' + encodeURIComponent(liveId), {
+        const createRes = await apiFetch('/api/reports?live_id=' + encodeURIComponent(liveId), {
             method: 'POST',
-            headers: getHeaders(),
         });
         if (!createRes.ok) {
             const err = await createRes.json();
@@ -948,9 +1025,7 @@ async function requestPdfReport() {
         // 2. Polling a cada 2s
         const pollInterval = setInterval(async () => {
             try {
-                const statusRes = await fetch('/api/reports/' + job_id, {
-                    headers: getHeaders(),
-                });
+                const statusRes = await apiFetch('/api/reports/' + job_id);
                 if (!statusRes.ok) {
                     clearInterval(pollInterval);
                     throw new Error('Falha ao consultar status');
@@ -963,7 +1038,7 @@ async function requestPdfReport() {
                     // Download via fetch para enviar token JWT no header
                     const downloadUrl = '/api/reports/' + job_id + '/download';
                     try {
-                        const dlRes = await fetch(downloadUrl, { headers: getHeaders() });
+                        const dlRes = await apiFetch(downloadUrl);
                         if (!dlRes.ok) throw new Error('Erro ao baixar PDF');
                         const blob = await dlRes.blob();
                         const url = URL.createObjectURL(blob);
@@ -997,7 +1072,11 @@ async function requestPdfReport() {
 }
 
 renderTermTags();
-loadLives();
+// Nao chamar loadLives() aqui: essa chamada corria antes de qualquer
+// checagem de autenticacao (e antes do cookie de sessao estar
+// confirmado), disparando 401 nao tratado em renderLiveOptions() e
+// deixando a UI em estado inconsistente. loadLives() agora so roda
+// depois que checkAuthState() confirma a sessao (ver final do arquivo).
 
 const API_BASE = '';
 const authSection = document.getElementById('auth-section');
@@ -1006,29 +1085,17 @@ const loginForm = document.getElementById('login-form');
 const userInfo = document.getElementById('user-info');
 const displayEmail = document.getElementById('display-email');
 
-// Fallback getHeaders para o caso de o primeiro script nao ter carregado
-if (typeof getHeaders === 'undefined') {
-    function getHeaders() {
-        return {};
-    }
-}
-
 async function checkAuthState() {
     try {
-        const resp = await fetch(`${API_BASE}/api/auth/me`);
+        const resp = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'same-origin' });
         if (resp.ok) {
             const user = await resp.json();
-            loginForm.classList.add('hidden');
-            userInfo.classList.remove('hidden');
-            displayEmail.textContent = user.email;
-            dataSection.classList.remove('hidden');
+            setAuthUI(true, user.email);
             loadLives();
             return;
         }
     } catch (e) {}
-    loginForm.classList.remove('hidden');
-    userInfo.classList.add('hidden');
-    dataSection.classList.add('hidden');
+    setAuthUI(false);
 }
 
 function doLogin() {
@@ -1041,6 +1108,7 @@ function doLogin() {
     errorDiv.textContent = '';
     fetch(API_BASE + '/api/auth/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email, password: password })
     }).then(function(resp) {
@@ -1053,7 +1121,7 @@ function doLogin() {
 document.getElementById('login-btn').addEventListener('click', doLogin);
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
-    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'same-origin' });
     checkAuthState();
 });
 
