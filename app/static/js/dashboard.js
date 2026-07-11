@@ -4,6 +4,28 @@ function getHeaders() {
     return {};
 }
 
+// ── Design tokens (mirrors CSS custom properties in dashboard.css) ─
+function cssVar(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return v && v.trim() ? v.trim() : fallback;
+}
+
+const COLORS = {
+    positive: cssVar('--color-positive', '#22c55e'),
+    positiveStrong: cssVar('--color-positive-strong', '#16a34a'),
+    positiveSoft: cssVar('--color-positive-soft', '#4ade80'),
+    negative: cssVar('--color-negative', '#ef4444'),
+    negativeStrong: cssVar('--color-negative-strong', '#dc2626'),
+    negativeSoft: cssVar('--color-negative-soft', '#f87171'),
+    neutral: cssVar('--color-neutral', '#94a3b8'),
+    accent: cssVar('--color-accent', '#3b82f6'),
+    accent2: cssVar('--color-accent-2', '#f97316'),
+    accent3: cssVar('--color-accent-3', '#8b5cf6'),
+    accent4: cssVar('--color-accent-4', '#f59e0b'),
+    accent5: cssVar('--color-accent-5', '#6366f1'),
+    accent6: cssVar('--color-accent-6', '#84cc16'),
+};
+
 // ── Loading indicator ──────────────────────────────
 function showLoading(msg) {
     const overlay = document.getElementById('loading-overlay');
@@ -52,10 +74,29 @@ let activeTerms = [];
 let currentFilters = { sentiment: 'Todos', timeStart: '', timeEnd: '' };
 let questionsShowAll = false;
 
+// ── Shared empty/loading state renderers (used by every card) ─────
+function renderEmptyState(container, message) {
+    if (!container) return;
+    container.innerHTML = '<span class="state-icon" aria-hidden="true">📭</span><span class="state-message">' + escapeHtml(message) + '</span>';
+}
+
+function renderLoadingState(sectionId) {
+    const loadingEl = document.getElementById(sectionId + '-loading');
+    const emptyEl = document.getElementById(sectionId + '-empty');
+    const canvasEl = document.getElementById(sectionId + '-chart');
+    const listEl = document.getElementById(sectionId + '-list');
+    if (loadingEl) loadingEl.classList.remove('hidden');
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (canvasEl) canvasEl.classList.add('hidden');
+    if (listEl) listEl.classList.add('hidden');
+}
+
 function showEmpty(sectionId, show) {
+    const loadingEl = document.getElementById(sectionId + '-loading');
+    if (loadingEl) loadingEl.classList.add('hidden');
     const emptyEl = document.getElementById(sectionId + '-empty');
     if (emptyEl && show && EMPTY_MESSAGES[sectionId]) {
-        emptyEl.textContent = EMPTY_MESSAGES[sectionId];
+        renderEmptyState(emptyEl, EMPTY_MESSAGES[sectionId]);
     }
     const canvasEl = document.getElementById(sectionId + '-chart');
     const listEl = document.getElementById(sectionId + '-list');
@@ -114,6 +155,8 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
         badge.classList.add('hidden');
         filterBar.classList.add('hidden');
         linkBtn.classList.add('hidden');
+        const liveContext = document.getElementById('live-context');
+        if (liveContext) liveContext.classList.add('hidden');
         return;
     }
     linkBtn.href = 'https://www.youtube.com/watch?v=' + liveId;
@@ -152,8 +195,13 @@ document.getElementById('live-select').addEventListener('change', async (e) => {
 
 function updateFooterStats(liveId) {
     const footer = document.getElementById('stats-footer');
+    const liveContext = document.getElementById('live-context');
     const live = livesData.find(l => l.live_id === liveId);
-    if (!live) { footer.classList.add('hidden'); return; }
+    if (!live) {
+        footer.classList.add('hidden');
+        if (liveContext) liveContext.classList.add('hidden');
+        return;
+    }
     footer.classList.remove('hidden');
     document.getElementById('footer-total-msgs').textContent = live.total_messages;
     const authorsData = cachedData.authors;
@@ -167,6 +215,14 @@ function updateFooterStats(liveId) {
         duration = (hrs > 0 ? hrs + 'h ' : '') + mins + 'min';
     }
     document.getElementById('footer-duration').textContent = duration;
+
+    // Indicador de live selecionada, fixado no topo (barra sticky) para dar contexto ao rolar a pagina
+    if (liveContext) {
+        document.getElementById('live-context-id').textContent = liveId;
+        document.getElementById('live-context-msgs').textContent = '📊 ' + live.total_messages + ' mensagens';
+        document.getElementById('live-context-duration').textContent = '⏱️ ' + duration;
+        liveContext.classList.remove('hidden');
+    }
 }
 function applyTimeFilters(timeline) {
     if (!currentFilters.timeStart && !currentFilters.timeEnd) return timeline;
@@ -174,6 +230,7 @@ function applyTimeFilters(timeline) {
 }
 
 async function loadTimeline(liveId) {
+    renderLoadingState('timeline');
     try {
         const res = await fetch(`${API}/${liveId}/sentiment-timeline?interval_minutes=5&sentiment_filter=${currentFilters.sentiment}&time_start=${currentFilters.timeStart}&time_end=${currentFilters.timeEnd}`, { headers: getHeaders() });
         const data = await res.json();
@@ -193,23 +250,23 @@ function renderTimeline() {
     if (filtered.length === 0) { showEmpty('timeline', true); return; }
     const labels = filtered.map(b => b.start_time.slice(11,16));
     const datasets = [];
-    const colors = { Positivo: '#22c55e', Negativo: '#ef4444', Neutro: '#94a3b8' };
+    const colors = { Positivo: COLORS.positive, Negativo: COLORS.negative, Neutro: COLORS.neutral };
     for (const [name, color] of Object.entries(colors)) {
         if (currentFilters.sentiment !== 'Todos' && currentFilters.sentiment !== name) continue;
         const values = filtered.map(b => b.sentiments[name]);
         // Marcadores nos pontos com mudanca significativa
         const pointBg = filtered.map(b => {
             if (!b.significant_change) return color;
-            if (b.change_direction === 'rise') return '#4ade80';
-            if (b.change_direction === 'drop') return '#f87171';
+            if (b.change_direction === 'rise') return COLORS.positiveSoft;
+            if (b.change_direction === 'drop') return COLORS.negativeSoft;
             return color;
         });
         const pointRadius = filtered.map(b => b.significant_change ? 7 : 3);
         const pointBorderColor = filtered.map(b => {
             if (!b.significant_change) return color;
-            if (b.change_direction === 'rise') return '#16a34a';
-            if (b.change_direction === 'drop') return '#dc2626';
-            return '#94a3b8';
+            if (b.change_direction === 'rise') return COLORS.positiveStrong;
+            if (b.change_direction === 'drop') return COLORS.negativeStrong;
+            return COLORS.neutral;
         });
         const pointBorderWidth = filtered.map(b => b.significant_change ? 3 : 1);
         datasets.push({
@@ -264,7 +321,7 @@ function renderSentimentStats() {
     const stats = data.statistics;
     if (stats.mean === undefined || stats.mean === null) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
-    const color = stats.mean > 0.05 ? '#22c55e' : stats.mean < -0.05 ? '#ef4444' : '#94a3b8';
+    const color = stats.mean > 0.05 ? COLORS.positive : stats.mean < -0.05 ? COLORS.negative : COLORS.neutral;
     let html = '<span style="color:' + color + ';font-weight:600;">M\u00e9dia: ' + stats.mean.toFixed(2) + '</span>';
     if (stats.ci_95) {
         html += ' &nbsp;\u00b7&nbsp; <span style="color:#64748b;">IC 95%: [' + stats.ci_95[0].toFixed(2) + ', ' + stats.ci_95[1].toFixed(2) + ']</span>';
@@ -273,6 +330,7 @@ function renderSentimentStats() {
 }
 
 async function loadPeaks(liveId) {
+    renderLoadingState('peaks');
     try {
         const res = await fetch(`${API}/${liveId}/engagement-peaks?top_n=10&window_minutes=1`, { headers: getHeaders() });
         const data = await res.json();
@@ -294,12 +352,13 @@ function renderPeaks() {
     const counts = filtered.map(p => p.message_count);
     if (peaksChart) peaksChart.destroy();
     peaksChart = new Chart(document.getElementById('peaks-chart'), {
-        type: 'bar', data: { labels, datasets: [{ label: 'Mensagens', data: counts, backgroundColor: '#f97316' }] },
+        type: 'bar', data: { labels, datasets: [{ label: 'Mensagens', data: counts, backgroundColor: COLORS.accent2 }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
 }
 
 async function loadWords(liveId) {
+    renderLoadingState('words');
     try {
         const res = await fetch(`${API}/${liveId}/word-frequency?top_n=10`, { headers: getHeaders() });
         const data = await res.json();
@@ -319,12 +378,13 @@ function renderWords() {
     const counts = data.word_frequency.map(w => w.frequencia);
     if (wordsChart) wordsChart.destroy();
     wordsChart = new Chart(document.getElementById('words-chart'), {
-        type: 'bar', data: { labels, datasets: [{ label: 'Frequencia', data: counts, backgroundColor: '#3b82f6' }] },
+        type: 'bar', data: { labels, datasets: [{ label: 'Frequencia', data: counts, backgroundColor: COLORS.accent }] },
         options: { responsive: true, indexAxis: 'y' }
     });
 }
 
 async function loadTopics(liveId) {
+    renderLoadingState('topics');
     try {
         const res = await fetch(`${API}/${liveId}/topics?top_n=10`, { headers: getHeaders() });
         const data = await res.json();
@@ -344,12 +404,13 @@ function renderTopics() {
     const scores = data.topics.map(t => t.score);
     if (topicsChart) topicsChart.destroy();
     topicsChart = new Chart(document.getElementById('topics-chart'), {
-        type: 'bar', data: { labels, datasets: [{ label: 'Score TF-IDF', data: scores, backgroundColor: '#8b5cf6' }] },
+        type: 'bar', data: { labels, datasets: [{ label: 'Score TF-IDF', data: scores, backgroundColor: COLORS.accent3 }] },
         options: { responsive: true, indexAxis: 'y' }
     });
 }
 
 async function loadEmojis(liveId) {
+    renderLoadingState('emojis');
     try {
         const res = await fetch(API + '/' + liveId + '/emojis?top_n=10', { headers: getHeaders() });
         const data = await res.json();
@@ -367,7 +428,7 @@ function renderEmojis() {
     showEmpty('emojis', false);
     const labels = data.emojis.map(e => e.emoji);
     const counts = data.emojis.map(e => e.count);
-    const colors = data.emojis.map(e => e.sentiment === 'Positivo' ? '#22c55e' : e.sentiment === 'Negativo' ? '#ef4444' : '#94a3b8');
+    const colors = data.emojis.map(e => e.sentiment === 'Positivo' ? COLORS.positive : e.sentiment === 'Negativo' ? COLORS.negative : COLORS.neutral);
     if (emojisChart) emojisChart.destroy();
     emojisChart = new Chart(document.getElementById('emojis-chart'), {
         type: 'bar', data: { labels, datasets: [{ label: 'Ocorrencias', data: counts, backgroundColor: colors }] },
@@ -376,6 +437,7 @@ function renderEmojis() {
 }
 
 async function loadTopAuthors(liveId) {
+    renderLoadingState('authors');
     try {
         const res = await fetch(API + '/' + liveId + '/top-authors?top_n=20', { headers: getHeaders() });
         const data = await res.json();
@@ -393,7 +455,7 @@ function renderAuthors() {
         return;
     }
     showEmpty('authors', false);
-    let html = '<table style="width:100%; border-collapse:collapse;"><tr style="color:#94a3b8;font-size:13px;"><th style="text-align:left;padding:4px;">Autor</th><th style="text-align:right;padding:4px;">Msgs</th><th style="text-align:right;padding:4px;">Sentimento</th></tr>';
+    let html = '<table style="width:100%; border-collapse:collapse;"><tr style="color:var(--color-text-muted);font-size:13px;"><th style="text-align:left;padding:4px;">Autor</th><th style="text-align:right;padding:4px;">Msgs</th><th style="text-align:right;padding:4px;">Sentimento</th></tr>';
     data.authors.forEach(a => {
         const cls = a.avg_sentiment === 'Positivo' ? 'sent-pos' : a.avg_sentiment === 'Negativo' ? 'sent-neg' : 'sent-neu';
         html += '<tr><td style="padding:4px;">' + escapeHtml(a.author) + '</td><td style="text-align:right;padding:4px;">' + a.messages + '</td><td style="text-align:right;padding:4px;"><span class="sent-badge ' + cls + '">' + escapeHtml(a.avg_sentiment || 'Neutro') + '</span></td></tr>';
@@ -409,13 +471,13 @@ async function loadTermTimeline(liveId) {
         showEmpty('term-timeline', true);
         return;
     }
-    showEmpty('term-timeline', false);
+    renderLoadingState('term-timeline');
     cachedData.termTimelines = {};
     try {
         const results = await Promise.all(activeTerms.map(term =>
             fetch(API + '/' + liveId + '/topic-timeline?term=' + encodeURIComponent(term) + '&interval_minutes=5', { headers: getHeaders() }).then(r => r.json())
         ));
-        const colors = ['#3b82f6', '#f97316', '#a855f7', '#22c55e', '#ef4444', '#fbbf24', '#6366f1', '#84cc16'];
+        const colors = [COLORS.accent, COLORS.accent2, COLORS.accent3, COLORS.positive, COLORS.negative, COLORS.accent4, COLORS.accent5, COLORS.accent6];
         const datasets = [];
         results.forEach((data, i) => {
             cachedData.termTimelines[activeTerms[i]] = data;
@@ -468,6 +530,7 @@ function renderTermTags() {
 }
 
 async function loadQuestions(liveId) {
+    renderLoadingState('questions');
     try {
         const res = await fetch(API + '/' + liveId + '/questions?min_length=10', { headers: getHeaders() });
         const data = await res.json();
@@ -499,7 +562,7 @@ function renderQuestions() {
     const displayItems = showAll ? filtered : filtered.slice(0, 10);
 
     let html = '<table style="width:100%; border-collapse:collapse;">';
-    html += '<tr style="color:#94a3b8;font-size:13px;"><th style="text-align:left;padding:4px;">Pergunta</th><th style="text-align:right;padding:4px;">Mencoes</th></tr>';
+    html += '<tr style="color:var(--color-text-muted);font-size:13px;"><th style="text-align:left;padding:4px;">Pergunta</th><th style="text-align:right;padding:4px;">Mencoes</th></tr>';
     displayItems.forEach(q => {
         const examplesStr = q.examples.length > 1 ? ' (ex: ' + q.examples.slice(0,2).map(e => '"' + e + '"').join(', ') + ')' : '';
         html += '<tr><td style="padding:4px;font-size:14px;">' + escapeHtml(q.text) + '<br><span style="font-size:11px;color:#64748b;">' + escapeHtml(examplesStr) + '</span></td><td style="text-align:right;padding:4px;">' + q.count + '</td></tr>';
@@ -509,7 +572,7 @@ function renderQuestions() {
     // Botao "Ver mais" / "Ver menos" (so quando nao ha filtro ativo)
     if (!filter && filtered.length > 10) {
         const label = showAll ? '▲ Ver menos' : '▼ Ver mais (' + (filtered.length - 10) + ' ocultas)';
-        html += '<div style="text-align:center;margin-top:0.5rem;"><button id="questions-toggle-btn" style="font-size:0.8rem;padding:0.3rem 1rem;background:transparent;border:1px solid #3b82f6;color:#3b82f6;border-radius:6px;cursor:pointer;">' + label + '</button></div>';
+        html += '<div style="text-align:center;margin-top:0.5rem;"><button id="questions-toggle-btn" style="font-size:0.8rem;padding:0.3rem 1rem;background:transparent;border:1px solid var(--color-accent);color:var(--color-accent);border-radius:6px;cursor:pointer;">' + label + '</button></div>';
     }
 
     list.innerHTML = html;
@@ -530,6 +593,7 @@ document.getElementById('questions-search').addEventListener('input', debounce(f
 }, 300));
 
 async function loadModalityTimeline(liveId) {
+    renderLoadingState('modality');
     try {
         const res = await fetch(API + '/' + liveId + '/modality-timeline?interval_minutes=5', { headers: getHeaders() });
         const data = await res.json();
@@ -554,9 +618,9 @@ function renderModality() {
         data: {
             labels,
             datasets: [
-                { label: 'Certeza', data: filtered.map(b => b.certeza), borderColor: '#22c55e', fill: false, tension: 0.3 },
-                { label: 'Duvida', data: filtered.map(b => b.duvida), borderColor: '#f97316', fill: false, tension: 0.3 },
-                { label: 'Enfase', data: filtered.map(b => b.enfase), borderColor: '#a855f7', fill: false, tension: 0.3 },
+                { label: 'Certeza', data: filtered.map(b => b.certeza), borderColor: COLORS.positive, fill: false, tension: 0.3 },
+                { label: 'Duvida', data: filtered.map(b => b.duvida), borderColor: COLORS.accent2, fill: false, tension: 0.3 },
+                { label: 'Enfase', data: filtered.map(b => b.enfase), borderColor: COLORS.accent3, fill: false, tension: 0.3 },
             ]
         },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
@@ -564,6 +628,7 @@ function renderModality() {
 }
 
 async function loadEmotionTimeline(liveId) {
+    renderLoadingState('emotion');
     try {
         const res = await fetch(API + '/' + liveId + '/emotion-timeline?interval_minutes=1', { headers: getHeaders() });
         const data = await res.json();
@@ -588,12 +653,12 @@ function renderEmotion() {
         data: {
             labels,
             datasets: [
-                { label: 'Alegria', data: filtered.map(b => b.alegria), borderColor: '#22c55e', fill: false, tension: 0.3 },
-                { label: 'Raiva', data: filtered.map(b => b.raiva), borderColor: '#ef4444', fill: false, tension: 0.3 },
-                { label: 'Medo', data: filtered.map(b => b.medo), borderColor: '#6366f1', fill: false, tension: 0.3 },
-                { label: 'Surpresa', data: filtered.map(b => b.surpresa), borderColor: '#fbbf24', fill: false, tension: 0.3 },
-                { label: 'Tristeza', data: filtered.map(b => b.tristeza), borderColor: '#3b82f6', fill: false, tension: 0.3 },
-                { label: 'Nojo', data: filtered.map(b => b.nojo), borderColor: '#84cc16', fill: false, tension: 0.3 },
+                { label: 'Alegria', data: filtered.map(b => b.alegria), borderColor: COLORS.positive, fill: false, tension: 0.3 },
+                { label: 'Raiva', data: filtered.map(b => b.raiva), borderColor: COLORS.negative, fill: false, tension: 0.3 },
+                { label: 'Medo', data: filtered.map(b => b.medo), borderColor: COLORS.accent5, fill: false, tension: 0.3 },
+                { label: 'Surpresa', data: filtered.map(b => b.surpresa), borderColor: COLORS.accent4, fill: false, tension: 0.3 },
+                { label: 'Tristeza', data: filtered.map(b => b.tristeza), borderColor: COLORS.accent, fill: false, tension: 0.3 },
+                { label: 'Nojo', data: filtered.map(b => b.nojo), borderColor: COLORS.accent6, fill: false, tension: 0.3 },
             ]
         },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
@@ -604,6 +669,7 @@ async function loadTopicSentiment(liveId) {
     const videoId = document.getElementById('video-id-input').value.trim();
     let url = API + '/' + liveId + '/topic-sentiment?top_n=10';
     if (videoId) url += '&video_id=' + encodeURIComponent(videoId);
+    renderLoadingState('topic-sentiment');
     try {
         const res = await fetch(url, { headers: getHeaders() });
         const data = await res.json();
@@ -635,9 +701,9 @@ function renderTopicSentiment() {
         data: {
             labels,
             datasets: [
-                { label: 'Positivo', data: pos, backgroundColor: '#22c55e' },
-                { label: 'Negativo', data: neg, backgroundColor: '#ef4444' },
-                { label: 'Neutro', data: neu, backgroundColor: '#94a3b8' },
+                { label: 'Positivo', data: pos, backgroundColor: COLORS.positive },
+                { label: 'Negativo', data: neg, backgroundColor: COLORS.negative },
+                { label: 'Neutro', data: neu, backgroundColor: COLORS.neutral },
             ]
         },
         options: {
@@ -672,6 +738,7 @@ function renderTopicSentiment() {
 }
 
 async function loadFraming(liveId) {
+    renderLoadingState('framing');
     try {
         const res = await fetch(API + '/' + liveId + '/framing', { headers: getHeaders() });
         const data = await res.json();
@@ -690,7 +757,7 @@ function renderFraming() {
     const labels = ['Ataque', 'Defesa', 'Ironia', 'Elogio', 'Pergunta', 'Neutro'];
     const keys = ['ataque', 'defesa', 'ironia', 'elogio', 'pergunta', 'neutro'];
     const values = keys.map(k => data.framing[k] || 0);
-    const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#22c55e', '#8b5cf6', '#94a3b8'];
+    const colors = [COLORS.negative, COLORS.accent, COLORS.accent4, COLORS.positive, COLORS.accent3, COLORS.neutral];
     if (framingChart) framingChart.destroy();
     framingChart = new Chart(document.getElementById('framing-chart'), {
         type: 'bar',
@@ -725,6 +792,7 @@ function renderFraming() {
 }
 
 async function loadSarcasm(liveId) {
+    renderLoadingState('sarcasm');
     try {
         const res = await fetch(API + '/' + liveId + '/sarcasm', { headers: getHeaders() });
         const data = await res.json();
@@ -742,7 +810,7 @@ function renderSarcasm() {
     showEmpty('sarcasm', false);
     const labels = ['Sarcastico', 'Nao sarcastico'];
     const values = [data.sarcasm.sarcastic || 0, data.sarcasm.non_sarcastic || 0];
-    const colors = ['#f59e0b', '#94a3b8'];
+    const colors = [COLORS.accent4, COLORS.neutral];
     if (sarcasmChart) sarcasmChart.destroy();
     sarcasmChart = new Chart(document.getElementById('sarcasm-chart'), {
         type: 'doughnut',
@@ -776,6 +844,7 @@ async function loadAspects(liveId) {
     const entities = document.getElementById('aspect-entities-input').value.trim();
     let url = API + '/' + liveId + '/aspect-sentiment';
     if (entities) url += '?entities=' + encodeURIComponent(entities);
+    renderLoadingState('aspects');
     try {
         const res = await fetch(url, { headers: getHeaders() });
         const data = await res.json();
@@ -803,9 +872,9 @@ function renderAspects() {
         data: {
             labels,
             datasets: [
-                { label: 'Positivo', data: pos, backgroundColor: '#22c55e' },
-                { label: 'Negativo', data: neg, backgroundColor: '#ef4444' },
-                { label: 'Neutro', data: neu, backgroundColor: '#94a3b8' },
+                { label: 'Positivo', data: pos, backgroundColor: COLORS.positive },
+                { label: 'Negativo', data: neg, backgroundColor: COLORS.negative },
+                { label: 'Neutro', data: neu, backgroundColor: COLORS.neutral },
             ]
         },
         options: {
@@ -905,24 +974,24 @@ async function requestPdfReport() {
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
-                        progressDiv.innerHTML = '<span style="color:#22c55e;">Relatório baixado com sucesso.</span>';
+                        progressDiv.innerHTML = '<span style="color:var(--color-positive);">Relatório baixado com sucesso.</span>';
                     } catch (e) {
-                        progressDiv.innerHTML = '<span style="color:#ef4444;">Erro ao baixar: ' + escapeHtml(e.message) + '</span>';
+                        progressDiv.innerHTML = '<span style="color:var(--color-negative);">Erro ao baixar: ' + escapeHtml(e.message) + '</span>';
                     }
                     btn.disabled = false;
                 } else if (job.status === 'failed') {
                     clearInterval(pollInterval);
-                    progressDiv.innerHTML = '<span style="color:#ef4444;">Erro: ' + escapeHtml(job.error || 'falha desconhecida') + '</span>';
+                    progressDiv.innerHTML = '<span style="color:var(--color-negative);">Erro: ' + escapeHtml(job.error || 'falha desconhecida') + '</span>';
                     btn.disabled = false;
                 }
             } catch (e) {
                 clearInterval(pollInterval);
-                progressDiv.innerHTML = '<span style="color:#ef4444;">' + escapeHtml(e.message) + '</span>';
+                progressDiv.innerHTML = '<span style="color:var(--color-negative);">' + escapeHtml(e.message) + '</span>';
                 btn.disabled = false;
             }
         }, 2000);
     } catch (e) {
-        progressDiv.innerHTML = '<span style="color:#ef4444;">' + escapeHtml(e.message) + '</span>';
+        progressDiv.innerHTML = '<span style="color:var(--color-negative);">' + escapeHtml(e.message) + '</span>';
         btn.disabled = false;
     }
 }

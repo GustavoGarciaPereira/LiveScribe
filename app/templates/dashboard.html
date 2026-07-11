@@ -10,148 +10,183 @@
     <link rel="stylesheet" href="/static/css/dashboard.css">
 </head>
 <body>
-    <h1>PulsoDaLive — Dashboard</h1>
-
     <!-- Loading overlay for data fetches -->
     <div id="loading-overlay" class="hidden">
         <div class="spinner"></div>
         <span>Carregando dados da live...</span>
     </div>
 
-    <div id="auth-section" class="card">
-        <h2>Login</h2>
-        <div id="login-form">
-            <form id="login-form-element" onsubmit="event.preventDefault(); doLogin();">
-                <input type="email" id="login-email" placeholder="Email" required>
-                <input type="password" id="login-password" placeholder="Senha" required>
-                <button id="login-btn" type="submit">Entrar</button>
-            </form>
-            <div id="login-error" class="error"></div>
+    <header class="app-header">
+        <div class="app-header-row">
+            <h1 class="app-title">PulsoDaLive</h1>
+            <div id="auth-section" class="auth-inline">
+                <div id="login-form" class="login-form-inline">
+                    <form id="login-form-element" onsubmit="event.preventDefault(); doLogin();">
+                        <input type="email" id="login-email" placeholder="Email" required>
+                        <input type="password" id="login-password" placeholder="Senha" required>
+                        <button id="login-btn" type="submit">Entrar</button>
+                    </form>
+                    <div id="login-error" class="error"></div>
+                </div>
+                <div id="user-info" class="hidden user-info-inline">
+                    <span>Logado como <strong id="display-email"></strong></span>
+                    <button id="logout-btn" class="danger">Sair</button>
+                </div>
+            </div>
         </div>
-        <div id="user-info" class="hidden">
-            <p>Logado como <strong id="display-email"></strong></p>
-            <button id="logout-btn" class="danger">Sair</button>
-        </div>
-    </div>
+    </header>
 
     <div id="data-section" class="hidden">
-    <label for="live-select">Selecione uma live:</label>
-    <input type="text" id="live-search" placeholder="Buscar live..." style="width:100%; max-width:300px; margin-bottom:0.25rem; background:#334155; border:1px solid #475569; color:#e2e8f0; padding:0.4rem 0.6rem; border-radius:6px; font-size:0.9rem;">
-    <select id="live-select" style="width:100%; max-width:300px;">
-        <option value="">-- Carregando lives... --</option>
-    </select>
-    <span id="live-status" class="badge hidden"></span>
-    <a id="live-link-btn" class="hidden" target="_blank" rel="noopener" style="display:inline-block;padding:0.25rem 0.75rem;background:#dc2626;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;margin-left:0.5rem;vertical-align:middle;">Ir para live</a>
+        <div id="control-bar" class="control-bar">
+            <div class="control-bar-main">
+                <label for="live-select" class="sr-only">Selecione uma live</label>
+                <input type="text" id="live-search" class="live-search" placeholder="Buscar live...">
+                <select id="live-select" class="live-select">
+                    <option value="">-- Carregando lives... --</option>
+                </select>
+                <span id="live-status" class="badge hidden"></span>
+                <a id="live-link-btn" class="hidden live-link-btn" target="_blank" rel="noopener">Ir para live</a>
+            </div>
+            <div id="live-context" class="live-context hidden">
+                <span id="live-context-id" class="live-context-id"></span>
+                <span id="live-context-msgs"></span>
+                <span id="live-context-duration"></span>
+            </div>
+            <div id="filter-bar" class="filter-bar hidden">
+                <label>Sentimento:</label>
+                <select id="filter-sentiment">
+                    <option value="Todos">Todos</option>
+                    <option value="Positivo">Positivo</option>
+                    <option value="Negativo">Negativo</option>
+                    <option value="Neutro">Neutro</option>
+                </select>
+                <label>Início:</label>
+                <input type="text" id="filter-time-start" placeholder="HH:MM" style="width:70px;">
+                <label>Fim:</label>
+                <input type="text" id="filter-time-end" placeholder="HH:MM" style="width:70px;">
+                <button id="filter-apply-btn">Aplicar</button>
+            </div>
+        </div>
 
-    <div id="filter-bar" class="filter-bar hidden">
-        <label>Sentimento:</label>
-        <select id="filter-sentiment">
-            <option value="Todos">Todos</option>
-            <option value="Positivo">Positivo</option>
-            <option value="Negativo">Negativo</option>
-            <option value="Neutro">Neutro</option>
-        </select>
-        <label>Início:</label>
-        <input type="text" id="filter-time-start" placeholder="HH:MM" style="width:70px;">
-        <label>Fim:</label>
-        <input type="text" id="filter-time-end" placeholder="HH:MM" style="width:70px;">
-        <button id="filter-apply-btn">Aplicar</button>
-    </div>
+    <main>
+    <section class="metrics-section">
+        <h2 class="section-label">Métricas principais</h2>
+        <div class="grid">
+            <div class="card">
+                <h2>Sentimentos ao longo do tempo <span class="info-tip" data-tip="Evolucao do sentimento medio (LeIA) em buckets de tempo. Mostra Positivo, Negativo e Neutro ao longo da live.">?</span></h2>
+                <div id="timeline-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="timeline-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="timeline-chart"></canvas>
+                <div id="sentiment-stats" class="hidden" style="margin-top:0.5rem;font-size:0.85rem;color:var(--color-text-muted);text-align:center;"></div>
+            </div>
+            <div class="card">
+                <h2>Picos de engajamento <span class="info-tip" data-tip="Janelas de maior atividade no chat. Cada pico representa o intervalo com mais mensagens enviadas.">?</span></h2>
+                <div id="peaks-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="peaks-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="peaks-chart"></canvas>
+            </div>
+            <div class="card">
+                <h2>Topicos (TF-IDF) <span class="info-tip" data-tip="Termos mais relevantes extraidos via TF-IDF. Leva em conta tanto a frequencia quanto a raridade do termo no conjunto.">?</span></h2>
+                <div id="topics-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="topics-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="topics-chart"></canvas>
+            </div>
+        </div>
+    </section>
 
-    <div class="grid">
-        <div class="card">
-            <h2>Sentimentos ao longo do tempo <span class="info-tip" data-tip="Evolucao do sentimento medio (LeIA) em buckets de tempo. Mostra Positivo, Negativo e Neutro ao longo da live.">?</span></h2>
-            <div id="timeline-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="timeline-chart"></canvas>
-            <div id="sentiment-stats" class="hidden" style="margin-top:0.5rem;font-size:0.85rem;color:#94a3b8;text-align:center;"></div>
-        </div>
-        <div class="card">
-            <h2>Picos de engajamento <span class="info-tip" data-tip="Janelas de maior atividade no chat. Cada pico representa o intervalo com mais mensagens enviadas.">?</span></h2>
-            <div id="peaks-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="peaks-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Frequencia de palavras <span class="info-tip" data-tip="Palavras mais usadas no chat, excluindo stopwords em portugues. Tamanho da palavra indica frequencia.">?</span></h2>
-            <div id="words-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="words-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Topicos (TF-IDF) <span class="info-tip" data-tip="Termos mais relevantes extraidos via TF-IDF. Leva em conta tanto a frequencia quanto a raridade do termo no conjunto.">?</span></h2>
-            <div id="topics-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="topics-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Emojis mais usados <span class="info-tip" data-tip="Emojis mais frequentes no chat, com classificacao de sentimento (Positivo/Negativo/Neutro).">?</span></h2>
-            <div id="emojis-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="emojis-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Top Autores <span class="info-tip" data-tip="Espectadores que mais enviaram mensagens, com o sentimento medio predominante de cada um.">?</span></h2>
-            <div id="authors-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <div id="top-authors-list"></div>
-        </div>
-        <div class="card">
-            <h2>Evolucao de termos <span class="info-tip" data-tip="Frequencia de um termo especifico ao longo do tempo. Digite um termo e pressione Enter para adicionar.">?</span></h2>
-            <div id="term-tags-container" class="tag-container" style="margin-bottom:0.5rem;">
-                <input type="text" id="term-tag-input" class="tag-input" placeholder="Digite e pressione Enter...">
+    <section class="metrics-section">
+        <h2 class="section-label">Métricas detalhadas</h2>
+        <div class="grid">
+            <div class="card">
+                <h2>Frequencia de palavras <span class="info-tip" data-tip="Palavras mais usadas no chat, excluindo stopwords em portugues. Tamanho da palavra indica frequencia.">?</span></h2>
+                <div id="words-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="words-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="words-chart"></canvas>
             </div>
-            <div id="term-timeline-empty" class="empty-state hidden">Nenhum termo adicionado</div>
-            <canvas id="term-timeline-chart" style="margin-top:0.25rem;"></canvas>
-        </div>
-        <div class="card">
-            <h2>Top Perguntas <span class="info-tip" data-tip="Perguntas frequentes detectadas automaticamente no chat, agrupadas por similaridade.">?</span></h2>
-            <input type="text" id="questions-search" class="search-inline" placeholder="Filtrar perguntas...">
-            <div id="questions-empty" class="empty-state hidden">Nenhuma pergunta detectada</div>
-            <div id="questions-list"></div>
-        </div>
-        <div class="card">
-            <h2>Modalidade (Certeza / Duvida / Enfase) <span class="info-tip" data-tip="Tom do discurso: certeza (afirmacoes firmes), duvida (incertezas) e enfase (exclamacoes).">?</span></h2>
-            <div id="modality-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="modality-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Emocoes (6 categorias) <span class="info-tip" data-tip="Distribuicao de 6 emocoes basicas: Alegria, Raiva, Medo, Surpresa, Tristeza e Nojo.">?</span></h2>
-            <div id="emotion-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="emotion-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>🎯 Sentimento por topico <span class="info-tip" data-tip="Sentimento associado a cada topico. Opcional: insira um Video ID do YouTube para ver a transcricao no momento do pico.">?</span></h2>
-            <div style="margin-bottom:0.5rem;">
-                <input type="text" id="video-id-input" placeholder="Video ID (opcional, para transcricao)" style="width:100%; max-width:250px; background:#334155; border:1px solid #475569; color:#e2e8f0; padding:0.35rem 0.6rem; border-radius:6px; font-size:0.85rem;">
-                <button id="video-id-apply" style="font-size:0.8rem; padding:0.35rem 0.7rem; margin-left:0.25rem;">Buscar</button>
+            <div class="card">
+                <h2>Emojis mais usados <span class="info-tip" data-tip="Emojis mais frequentes no chat, com classificacao de sentimento (Positivo/Negativo/Neutro).">?</span></h2>
+                <div id="emojis-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="emojis-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="emojis-chart"></canvas>
             </div>
-            <div id="topic-sentiment-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="topic-sentiment-chart"></canvas>
-            <div id="topic-sentiment-detail" style="margin-top:0.5rem; font-size:0.8rem; color:#94a3b8;"></div>
-        </div>
-        <div class="card">
-            <h2>🗣️ Enquadramentos <span class="info-tip" data-tip="Classificacao do discurso em 6 categorias: ataque, defesa, ironia, elogio, pergunta ou neutro.">?</span></h2>
-            <div id="framing-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="framing-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>😏 Sarcasmo/ironia <span class="info-tip" data-tip="Proporcao de mensagens sarcasticas vs. nao-sarcasticas detectadas pelo lexico de ironia.">?</span></h2>
-            <div id="sarcasm-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="sarcasm-chart"></canvas>
-        </div>
-        <div class="card">
-            <h2>🎯 Sentimento por Aspectos <span class="info-tip" data-tip="Sentimento agregado para entidades especificas (pessoas, marcas). Use o campo acima para filtrar.">?</span></h2>
-            <div style="margin-bottom:0.5rem;">
-                <input type="text" id="aspect-entities-input" placeholder="Filtrar entidades (ex: bruno,breno)" style="width:100%; max-width:300px; background:#334155; border:1px solid #475569; color:#e2e8f0; padding:0.35rem 0.6rem; border-radius:6px; font-size:0.85rem;">
-                <button id="aspect-apply" style="font-size:0.8rem; padding:0.35rem 0.7rem; margin-left:0.25rem;">Buscar</button>
+            <div class="card">
+                <h2>Top Autores <span class="info-tip" data-tip="Espectadores que mais enviaram mensagens, com o sentimento medio predominante de cada um.">?</span></h2>
+                <div id="authors-loading" class="card-loading hidden"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div></div>
+                <div id="authors-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <div id="top-authors-list"></div>
             </div>
-            <div id="aspects-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
-            <canvas id="aspects-chart"></canvas>
+            <div class="card">
+                <h2>Evolucao de termos <span class="info-tip" data-tip="Frequencia de um termo especifico ao longo do tempo. Digite um termo e pressione Enter para adicionar.">?</span></h2>
+                <div id="term-tags-container" class="tag-container" style="margin-bottom:0.5rem;">
+                    <input type="text" id="term-tag-input" class="tag-input" placeholder="Digite e pressione Enter...">
+                </div>
+                <div id="term-timeline-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="term-timeline-empty" class="empty-state hidden">Nenhum termo adicionado</div>
+                <canvas id="term-timeline-chart" style="margin-top:0.25rem;"></canvas>
+            </div>
+            <div class="card">
+                <h2>Top Perguntas <span class="info-tip" data-tip="Perguntas frequentes detectadas automaticamente no chat, agrupadas por similaridade.">?</span></h2>
+                <input type="text" id="questions-search" class="search-inline" placeholder="Filtrar perguntas...">
+                <div id="questions-loading" class="card-loading hidden"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div></div>
+                <div id="questions-empty" class="empty-state hidden">Nenhuma pergunta detectada</div>
+                <div id="questions-list"></div>
+            </div>
+            <div class="card">
+                <h2>Modalidade (Certeza / Duvida / Enfase) <span class="info-tip" data-tip="Tom do discurso: certeza (afirmacoes firmes), duvida (incertezas) e enfase (exclamacoes).">?</span></h2>
+                <div id="modality-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="modality-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="modality-chart"></canvas>
+            </div>
+            <div class="card">
+                <h2>Emocoes (6 categorias) <span class="info-tip" data-tip="Distribuicao de 6 emocoes basicas: Alegria, Raiva, Medo, Surpresa, Tristeza e Nojo.">?</span></h2>
+                <div id="emotion-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="emotion-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="emotion-chart"></canvas>
+            </div>
+            <div class="card">
+                <h2>🎯 Sentimento por topico <span class="info-tip" data-tip="Sentimento associado a cada topico. Opcional: insira um Video ID do YouTube para ver a transcricao no momento do pico.">?</span></h2>
+                <div style="margin-bottom:0.5rem;">
+                    <input type="text" id="video-id-input" placeholder="Video ID (opcional, para transcricao)" style="width:100%; max-width:250px;">
+                    <button id="video-id-apply" style="font-size:0.8rem; padding:0.35rem 0.7rem; margin-left:0.25rem;">Buscar</button>
+                </div>
+                <div id="topic-sentiment-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="topic-sentiment-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="topic-sentiment-chart"></canvas>
+                <div id="topic-sentiment-detail" style="margin-top:0.5rem; font-size:0.8rem; color:var(--color-text-muted);"></div>
+            </div>
+            <div class="card">
+                <h2>🗣️ Enquadramentos <span class="info-tip" data-tip="Classificacao do discurso em 6 categorias: ataque, defesa, ironia, elogio, pergunta ou neutro.">?</span></h2>
+                <div id="framing-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="framing-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="framing-chart"></canvas>
+            </div>
+            <div class="card">
+                <h2>😏 Sarcasmo/ironia <span class="info-tip" data-tip="Proporcao de mensagens sarcasticas vs. nao-sarcasticas detectadas pelo lexico de ironia.">?</span></h2>
+                <div id="sarcasm-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="sarcasm-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="sarcasm-chart"></canvas>
+            </div>
+            <div class="card">
+                <h2>🎯 Sentimento por Aspectos <span class="info-tip" data-tip="Sentimento agregado para entidades especificas (pessoas, marcas). Use o campo acima para filtrar.">?</span></h2>
+                <div style="margin-bottom:0.5rem;">
+                    <input type="text" id="aspect-entities-input" placeholder="Filtrar entidades (ex: bruno,breno)" style="width:100%; max-width:300px;">
+                    <button id="aspect-apply" style="font-size:0.8rem; padding:0.35rem 0.7rem; margin-left:0.25rem;">Buscar</button>
+                </div>
+                <div id="aspects-loading" class="card-loading hidden"><div class="skeleton skeleton-block"></div></div>
+                <div id="aspects-empty" class="empty-state hidden">Nenhum dado disponivel para esta live</div>
+                <canvas id="aspects-chart"></canvas>
+            </div>
+            <div class="card">
+                <h2>Exportar dados <span class="info-tip" data-tip="Exporte as mensagens da live em JSON, CSV, XLSX ou gere um relatorio PDF completo com graficos.">?</span></h2>
+                <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
+                <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
+                <button id="export-xlsx" class="export-link" onclick="exportData('xlsx')">XLSX</button>
+                <button id="export-pdf" class="export-link" onclick="requestPdfReport()">PDF</button>
+                <div id="pdf-progress" style="margin-top:0.5rem;font-size:0.85rem;color:var(--color-text-muted);"></div>
+            </div>
         </div>
-        <div class="card">
-            <h2>Exportar dados <span class="info-tip" data-tip="Exporte as mensagens da live em JSON, CSV, XLSX ou gere um relatorio PDF completo com graficos.">?</span></h2>
-            <button id="export-json" class="export-link" onclick="exportData('json')">JSON</button>
-            <button id="export-csv" class="export-link" onclick="exportData('csv')">CSV</button>
-            <button id="export-xlsx" class="export-link" onclick="exportData('xlsx')">XLSX</button>
-            <button id="export-pdf" class="export-link" onclick="requestPdfReport()">PDF</button>
-            <div id="pdf-progress" style="margin-top:0.5rem;font-size:0.85rem;color:#94a3b8;"></div>
-            <style>button.export-link{background:none;border:none;color:#3b82f6;cursor:pointer;font-size:1rem;padding:0;margin-right:4px;}button.export-link:hover{text-decoration:underline;}button.export-link:disabled{color:#64748b;cursor:not-allowed;text-decoration:none;}</style>
-        </div>
+    </section>
+    </main>
     </div>
 
     <script src="/static/js/dashboard.js" defer></script>
