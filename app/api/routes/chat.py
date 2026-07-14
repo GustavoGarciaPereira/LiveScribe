@@ -45,7 +45,7 @@ def save_message(
         payload.platform or "youtube",
         user_id=user.id,
     )
-    background_tasks.add_task(trigger_webhooks, "new_message", {
+    background_tasks.add_task(trigger_webhooks, service.db, "new_message", {
         "live_id": message.live_id,
         "author": message.author,
         "message": message.message,
@@ -135,7 +135,7 @@ def engagement_peaks(
     result = service.engagement_peaks(live_id, top_n, window_minutes, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma mensagem encontrada.")
-    background_tasks.add_task(trigger_webhooks, "peak_engagement", result, user_id=user.id)
+    background_tasks.add_task(trigger_webhooks, service.db, "peak_engagement", result, user_id=user.id)
     return EngagementPeaksResponse(
         live_id=result["live_id"],
         window_minutes=result["window_minutes"],
