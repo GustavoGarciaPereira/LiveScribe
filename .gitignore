@@ -24,3 +24,5 @@ short_block
 data/app.db-wal
 data/app.db-shm
 reasonix.toml
+.claude/settings.json
+session-20260711-023514.md

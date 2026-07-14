@@ -32,7 +32,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/messages", response_model=MessageResponse)
-@limiter.limit("120/minute")
+@limiter.limit("1600/minute")
 def save_message(
     request: Request,
     payload: ChatMessage,
