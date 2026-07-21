@@ -4,7 +4,7 @@
 
 - **Nome do projeto:** PulsoDaLive / LiveScribe
 - **Objetivo:** Coletar chat de lives de multiplas plataformas e analisar discurso (frequencia de palavras, sentimentos, topicos, picos de engajamento, emojis, ranking de espectadores, enquadramentos, sarcasmo)
-- **Stack:** FastAPI + SQLAlchemy + SQLite + LeIA (lexico) + scikit-learn + regex + Extensao Chrome + Chart.js + WeasyPrint
+- **Stack:** FastAPI + SQLAlchemy + SQLite + LeIA (lexico) + scikit-learn + regex + Extensao Chrome + Chart.js + WeasyPrint + google-api-python-client
 
 ## Arquitetura atual
 
@@ -16,7 +16,8 @@ app/
 │       ├── auth.py          -> register, login, login/google, callback/google, logout, /me
 │       ├── chat.py          -> 19 endpoints de analise + export
 │       ├── reports.py       -> 3 endpoints de relatorio PDF (create, status, download)
-│       └── webhooks.py      -> CRUD de webhooks (create, list, delete)
+│       ├── webhooks.py      -> CRUD de webhooks (create, list, delete)
+│       └── youtube_comments.py -> Coleta de comentarios via YouTube Data API v3 (fetch, list, export CSV)
 ├── core/
 │   ├── config.py            -> Configuracoes do .env (pydantic-settings)
 │   ├── limiter.py           -> Limiter compartilhado do slowapi (rate limiting)
@@ -33,7 +34,8 @@ app/
 ├── models/
 │   ├── message.py           -> Message ORM (id, live_id, author, message, platform, user_id, created_at)
 │   ├── user.py              -> User ORM (email, name, google_id, password_hash/bcrypt, provider, is_active)
-│   └── webhook.py           -> Webhook ORM (url, event, user_id, is_active)
+│   ├── webhook.py           -> Webhook ORM (url, event, user_id, is_active)
+│   └── youtube_comment.py   -> YouTubeComment ORM (video_id, author, comment, reply_count, reply_level, is_reply, parent_id, published_at, user_id)
 ├── repositories/
 │   └── messages.py          -> create_message, list_messages_by_live, list_lives, list_top_authors
 ├── schemas/
@@ -56,13 +58,23 @@ app/
 │   ├── sentiment.py         -> SentimentAnalyzer (ABC) + LeiaSentimentAnalyzer (LeIA)
 │   ├── topics.py            -> TopicExtractor (ABC) + TfidfTopicExtractor (sklearn) com _filter_tokens
 │   ├── transcript.py        -> TranscriptService: obtem transcricao via YouTube Transcript API
-│   └── webhook.py           -> trigger_webhooks (POST para URLs cadastradas)
+│   ├── webhook.py           -> trigger_webhooks (POST para URLs cadastradas)
+│   └── youtube_comments.py  -> YouTubeCommentService: coleta de comentarios via YouTube Data API v3, com suporte a profundidade configurável de respostas (max_depth) e conversão de fuso horário (UTC→BRT)
 ├── templates/
 │   ├── dashboard.html       -> Dashboard interativo com Chart.js (inclui graficos de enquadramentos e sarcasmo)
 │   ├── favicon.svg          -> Favicon SVG do PulsoDaLive
 │   ├── landing.html         -> Landing page de vendas com secoes de features, precos, FAQ
+│   ├── login.html           -> Pagina de login segura com email/senha, cadastro e Google OAuth
 │   └── report_html.py       -> Template Jinja2 para o relatorio PDF (inclui secoes de enquadramentos e sarcasmo)
-└── main.py                  -> App factory, lifespan, CORS, healthcheck, /dashboard, /landing, /favicon.ico, migracoes legadas
+└── main.py                  -> App factory, lifespan, CORS, healthcheck, /dashboard, /landing, /login, /favicon.ico, /youtube-comments, migracoes legadas
+
+static/
+├── css/
+│   ├── dashboard.css        -> Estilos do dashboard (design tokens, grid, cards)
+│   └── nav.css              -> Estilos da barra de navegacao (fixa, responsiva, dark mode)
+└── js/
+    ├── dashboard.js         -> Logica do dashboard SPA (Chart.js, auth, filtros)
+    └── nav.js               -> Menu de navegacao dinamico com estado de autenticacao
 
 frontend/
 ├── content.js               -> Extensao Chrome (v4): MutationObserver no #chatframe do YouTube + token JWT
@@ -114,14 +126,14 @@ tests/
 - **Sentimento por aspectos:** `LexiconAspectAnalyzer` detecta entidades (pessoas, marcas, termos do léxico `ASPECTS_LEXICON`) e calcula sentimento agregado (LeIA) para cada entidade encontrada.
 - **Visualizacao no dashboard:** Grafico de barras horizontal para enquadramentos; grafico de rosca (doughnut) para sarcasmo. Ambos com tooltip mostrando contagem e percentual.
 - **Relatorio PDF:** Ambos enriquecimento via `report_queue.py` — necessario adicionar cada novo analisador ao `ChatService` criado na thread background (mesmo problema recorrente com framing e sarcasmo).
-- **Test coverage:** 93%, com testes unitarios, de servico e de rota para cada novo analisador.
+- **Test coverage:** 93%, com testes unitarios, de servico e de rota para cada novo analisador. Total: **243 testes**.
 
 ## Endpoints
 
 | Metodo | Rota | Auth | Descricao |
 |--------|------|------|-----------|
 | GET | / | — | Healthcheck |
-| GET | /dashboard | — | Dashboard HTML (Chart.js) |
+| GET | /dashboard | 🔒 | Dashboard HTML (Chart.js) |
 | GET | /landing | — | Landing page de vendas |
 | GET | /favicon.ico | — | Favicon SVG |
 | **Auth** |
@@ -158,6 +170,14 @@ tests/
 | POST | /api/webhooks | 🔒 | Criar webhook |
 | GET | /api/webhooks | 🔒 | Listar webhooks |
 | DELETE | /api/webhooks/{id} | 🔒 | Deletar webhook |
+| **YouTube Comments** |
+| POST | /api/youtube/comments/fetch | 🔒 | Coletar comentarios de um video via YouTube Data API (com max_depth opcional) |
+| GET | /api/youtube/comments | 🔒 | Listar videos coletados |
+| GET | /api/youtube/comments/{video_id} | 🔒 | Listar comentarios de um video |
+| GET | /api/youtube/comments/{video_id}/export | 🔒 | Exportar comentarios para CSV |
+| **Paginas** |
+| GET | /login | — | Pagina de login (email/senha, cadastro, Google OAuth) |
+| GET | /youtube-comments | 🔒 | Pagina de gerenciamento de comentarios do YouTube |
 
 ## Tarefas concluidas
 
@@ -277,6 +297,33 @@ tests/
 7. **Expansao de stopwords** — ~110 novas entradas incluindo verbos de primeira pessoa (acho, acredito, agradecemos), verbos genericos (ver, falar, quer, fazer, saber, dizer) e pronomes/advérbios (coisa, gente, ainda, super, tudo, nada, algo)
 8. **Teste de validacao de lexicos** — `scripts/validate_lexicons.py` + `scripts/compute_lexicon_accuracy.py` para medir precisao real dos léxicos de sarcasmo e enquadramento
 9. **Total: 201 testes, 93% de cobertura**
+
+### Fase 11 — Modulo de comentarios de videos do YouTube
+1. **`app/services/youtube_comments.py`** — `YouTubeCommentService` com coleta via YouTube Data API v3
+2. **``app/models/youtube_comment.py`** — Modelo ORM `YouTubeComment` (video_id, author, comment, reply_count, is_reply, parent_id, published_at, user_id)
+3. **Endpoints:** `POST /api/youtube/comments/fetch` (coleta), `GET /api/youtube/comments` (listar videos), `GET /api/youtube/comments/{video_id}` (listar comentarios), `GET /api/youtube/comments/{video_id}/export` (CSV)
+4. **UI em `/youtube-comments`** — Pagina com dark mode, tabela de comentarios, exportacao CSV
+5. **Profundidade configuravel de respostas** — `max_depth`: 0 (so principais), 1 (N1), 2 (N2), -1 (todas); recursao com `reply_level`
+6. **Fuso horario BRT** — Armazenamento em UTC, exibicao em America/Sao_Paulo (-03:00)
+7. **`google-api-python-client`** adicionado as dependencias
+8. **36 testes** — fuso, max_depth, reply_count, reply_level, rotas
+9. **Total: 222+ testes**
+
+### Fase 12 — .env, python-dotenv e seguranca de credenciais
+1. **`.env` criado** — `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `YOUTUBE_API_KEY`
+2. **`python-dotenv`** — `load_dotenv()` no startup (fallback para pydantic-settings)
+3. **`YOUTUBE_API_KEY` removida do codigo-fonte** — existe apenas no `.env`
+4. **`.env` adicionado ao `.gitignore`** — prevencao de vazamento de credenciais
+5. **Correcao Chart.js integrity** — hash SHA-384 corrigido para v4.4.7
+6. **Import opcional do dotenv** — `try/except ImportError` para nao crashar fora do venv
+
+### Fase 13 — Tela de login segura e menu de navegacao
+1. **`/login`** — Pagina de login dark mode com abas Entrar/Cadastrar, email/senha e Google OAuth; aceita `?next=` para redirect pos-login
+2. **`get_current_user_optional`** — Dependency que retorna `None` em vez de 401, usada para proteger paginas HTML
+3. **`/dashboard` e `/youtube-comments` protegidos** — Redirecionam para `/login?next=...` quando nao autenticados
+4. **Google OAuth com `state`** — Callback aceita `state` e redireciona o navegador apos login
+5. **`nav.css` + `nav.js`** — Barra de navegacao fixa no topo com links, auth state (avatar + nome + Sair), responsiva (hamburguer em mobile)
+6. **243 testes, 100% passando**
 
 ## Comandos uteis
 

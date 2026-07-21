@@ -10,6 +10,7 @@ Captura e análise de discurso em tempo real de chats de **lives do YouTube**. C
 - Extensão Chrome (Manifest V3) com `MutationObserver` no `#chatframe` do YouTube
 - Envio automático de mensagens para a API com token JWT opcional
 - Suporte a múltiplas plataformas (coluna `platform`)
+- **Coleta de comentários de vídeos** via YouTube Data API v3 — comentários principais + respostas com profundidade configurável (N1, N2, todas) e exportação CSV
 
 ### Análise de Discurso (19 endpoints)
 | Análise | Descrição |
@@ -88,9 +89,9 @@ Captura e análise de discurso em tempo real de chats de **lives do YouTube**. C
 | **Auth** | JWT (python-jose) + bcrypt + Google OAuth2 (httpx-oauth) |
 | **NLP** | LeIA (sentimento), scikit-learn (TF-IDF), léxicos próprios (emoções, modalidade, framing, sarcasmo, aspectos) |
 | **PDF** | WeasyPrint + Jinja2 + Matplotlib |
+| **YouTube** | google-api-python-client + youtube-transcript-api |
 | **Extensão** | Chrome Manifest V3 (content.js + popup) |
-| **Transcrição** | youtube-transcript-api |
-| **Testes** | pytest + pytest-cov + httpx (201 testes) |
+| **Testes** | pytest + pytest-cov + httpx (243 testes) |
 
 ---
 
@@ -193,6 +194,23 @@ GET  /api/reports/abc123/download  →  (binary PDF)
 | `GET` | `/webhooks` | ✅ | Listar webhooks do usuário |
 | `DELETE` | `/webhooks/{id}` | ✅ | Deletar webhook |
 
+### YouTube Comments — prefixo `/api/youtube/comments`
+
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| `POST` | `/fetch` | ✅ | Coletar comentários de um vídeo (suporta `max_depth`) |
+| `GET` | `` | ✅ | Listar vídeos coletados |
+| `GET` | `/{video_id}` | ✅ | Listar comentários de um vídeo (datas em BRT) |
+| `GET` | `/{video_id}/export` | ✅ | Exportar para CSV |
+
+### Páginas
+
+| Método | Rota | Auth | Descrição |
+|--------|------|:----:|-----------|
+| `GET` | `/login` | ❌ | Página de login (email/senha, cadastro, Google OAuth) |
+| `GET` | `/youtube-comments` | ✅ | Gerenciamento de comentários do YouTube |
+| `GET` | `/dashboard` | ✅ | Dashboard interativo |
+
 ---
 
 ## Arquitetura de Serviços
@@ -254,7 +272,8 @@ app/
 │       ├── auth.py           # 5 endpoints de autenticação
 │       ├── chat.py           # 19 endpoints de análise + export
 │       ├── reports.py        # 3 endpoints de relatório PDF
-│       └── webhooks.py       # 3 endpoints de webhook
+│       ├── webhooks.py       # 3 endpoints de webhook
+│       └── youtube_comments.py # 4 endpoints de comentários YouTube
 ├── core/
 │   ├── aspects_lexicon.py    # Léxico de ~80 entidades para sentimento por aspecto
 │   ├── config.py             # Settings (pydantic-settings)
@@ -267,7 +286,7 @@ app/
 │   └── timezone.py           # Utilitários de timezone (BRT)
 ├── infrastructure/
 │   └── database.py           # Engine + SessionLocal (SQLite WAL)
-├── models/                   # ORM: Message, User, Webhook
+├── models/                   # ORM: Message, User, Webhook, YouTubeComment
 ├── repositories/
 │   └── messages.py           # Queries de mensagens
 ├── schemas/                  # Pydantic: auth, chat, webhook
@@ -287,10 +306,22 @@ app/
 │   ├── sentiment.py          # LeiaSentimentAnalyzer
 │   ├── topics.py             # TfidfTopicExtractor
 │   ├── transcript.py         # YouTube Transcript API + cache
-│   └── webhook.py            # trigger_webhooks async
+│   ├── webhook.py            # trigger_webhooks async
+│   └── youtube_comments.py   # YouTube Comment Service (API v3)
 ├── templates/
 │   ├── dashboard.html        # SPA Chart.js (com framing, sarcasmo, aspectos)
+│   ├── landing.html          # Landing page de vendas
+│   ├── login.html            # Página de login/cadastro
+│   ├── favicon.svg           # Favicon
+│   ├── youtube_comments.html # UI de comentários YouTube
 │   └── report_html.py        # Template Jinja2 para PDF
+├── static/
+│   ├── css/
+│   │   ├── dashboard.css     # Estilos do dashboard
+│   │   └── nav.css           # Estilos da barra de navegação
+│   └── js/
+│       ├── dashboard.js      # Lógica do dashboard SPA
+│       └── nav.js            # Menu de navegação com auth
 └── main.py                   # App factory + lifespan + CORS
 ```
 
@@ -302,7 +333,7 @@ app/
 pytest -v --cov=app --cov-report=term-missing
 ```
 
-**201 testes, 93%+ cobertura** — 21 arquivos de teste.
+**243 testes, 93%+ cobertura** — 22 arquivos de teste.
 
 | Arquivo | Foco |
 |---------|------|
@@ -323,6 +354,7 @@ pytest -v --cov=app --cov-report=term-missing
 | `test_emojis.py` | RegexEmojiExtractor |
 | `test_webhooks.py` | Webhook CRUD + trigger |
 | `test_dashboard.py` | Dashboard HTML |
+| `test_youtube_comments.py` | YouTube Comment Service + rotas (36 testes) |
 | `test_schemas.py` | Schemas Pydantic |
 | `test_repositories.py` | CRUD mensagens |
 | `test_models.py` | Modelos ORM |
@@ -341,6 +373,7 @@ O SQLite é criado automaticamente em `data/app.db` com WAL mode. Colunas adicio
 | `users` | `password_hash VARCHAR` | Feature 1.5 |
 | `users` | `provider VARCHAR DEFAULT 'local'` | Feature 1.5 |
 | `users` | `is_active BOOLEAN DEFAULT 1` | Feature 1.5 |
+| `youtube_comments` | `reply_level INTEGER DEFAULT 0` | Fase 11 |
 
 Para recriar do zero: `rm data/app.db` e reiniciar o servidor.
 
@@ -355,6 +388,7 @@ SECRET_KEY=seu-segredo-aqui
 ENVIRONMENT=development
 GOOGLE_CLIENT_ID=seu-client-id
 GOOGLE_CLIENT_SECRET=seu-client-secret
+YOUTUBE_API_KEY=sua-chave-api-youtube
 TIMEZONE=America/Sao_Paulo
 ```
 
@@ -382,6 +416,9 @@ Em produção, `SECRET_KEY` **obrigatório** ser alterado — o validador do `Se
 | **Fase 8** | Detecção de sarcasmo — léxico ~60 expressões irônicas |
 | **Fase 9** | Correções pós-implantação: PDF com framing/sarcasmo, refatoração templates |
 | **Fase 10** | Sentimento por aspectos, significância estatística (T de Welch), expansão stopwords (+110), scripts de validação de léxicos |
+| **Fase 11** | Módulo de comentários de vídeos YouTube (coleta via Data API v3, profundidade configurável, fuso BRT, CSV) |
+| **Fase 12** | .env com python-dotenv, credenciais fora do código-fonte, YOUTUBE_API_KEY no .env |
+| **Fase 13** | Tela de login segura (/login), navbar com navegação e auth state, redirect em páginas protegidas |
 
 ---
 
