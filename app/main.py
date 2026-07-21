@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-# Carrega .env ANTES de qualquer import que use settings
-load_dotenv()
+# Carrega .env antes de qualquer import que use settings.
+# Tenta python-dotenv primeiro; fallback para pydantic-settings (nativo).
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -79,6 +82,16 @@ def _migrate_legacy_db():
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE messages ADD COLUMN user_id INTEGER REFERENCES users(id)"))
             conn.commit()
+
+    # Coluna reply_level (YouTube Comments)
+    if inspector.has_table("youtube_comments"):
+        yt_columns = [c["name"] for c in inspector.get_columns("youtube_comments")]
+        if "reply_level" not in yt_columns:
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE youtube_comments ADD COLUMN reply_level INTEGER NOT NULL DEFAULT 0")
+                )
+                conn.commit()
 
 
 def create_application() -> FastAPI:
