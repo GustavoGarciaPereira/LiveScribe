@@ -229,6 +229,7 @@ class YouTubeCommentResponse(BaseModel):
     like_count: int = 0
     reply_count: int = 0
     is_reply: bool = False
+    reply_level: int = 0
     parent_id: str | None = None
     published_at: str | None = None
     collected_at: str | None = None
@@ -253,3 +254,4 @@ class YouTubeFetchResponse(BaseModel):
     total_comments: int
     total_replies: int
     total_items: int
+    max_depth: int = -1

@@ -38,8 +38,16 @@ async def fetch_comments(
             detail="URL ou ID de vídeo inválido. Use um ID de 11 caracteres ou uma URL do YouTube.",
         )
 
+    # Profundidade de respostas: -1 (todas), 0 (apenas principais), 1 (N1), 2 (N2), ...
+    max_depth = body.get("max_depth", -1)
+    if not isinstance(max_depth, int) or max_depth < -1:
+        raise HTTPException(
+            status_code=400,
+            detail="max_depth deve ser -1 (todas), 0 (apenas principais) ou um inteiro positivo.",
+        )
+
     service = YouTubeCommentService(db)
-    result = service.fetch_comments(video_id, current_user.id)
+    result = service.fetch_comments(video_id, current_user.id, max_depth=max_depth)
     return result
 
 

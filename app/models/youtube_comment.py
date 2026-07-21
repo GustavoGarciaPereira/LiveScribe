@@ -16,6 +16,7 @@ class YouTubeComment(Base):
     like_count = Column(Integer, default=0)
     reply_count = Column(Integer, default=0)
     is_reply = Column(Boolean, default=False)
+    reply_level = Column(Integer, default=0)  # 0=Principal, 1=N1, 2=N2, ...
     parent_id = Column(String(100), nullable=True)
     published_at = Column(DateTime, nullable=True)
     collected_at = Column(

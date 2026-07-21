@@ -130,6 +130,12 @@
         <div class="card-header">🔍 Coletar Comentários</div>
         <div class="input-group">
             <input type="text" id="video-input" placeholder="Cole a URL ou ID do vídeo do YouTube" autocomplete="off">
+            <select id="depth-select" style="padding:0.75rem 1rem;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:1rem;outline:none;cursor:pointer;">
+                <option value="-1">Todas as respostas</option>
+                <option value="2">Principal + 2 níveis</option>
+                <option value="1">Principal + 1 nível</option>
+                <option value="0">Apenas principais</option>
+            </select>
             <button class="btn btn-primary" id="fetch-btn">Buscar comentários</button>
         </div>
         <div class="hint" style="margin-top:0.5rem;color:#64748b;font-size:0.85rem;">
@@ -221,10 +227,11 @@ document.getElementById('fetch-btn').addEventListener('click', async () => {
     setStatus('Buscando comentários da API do YouTube...', 'loading');
 
     try {
+        const depth = document.getElementById('depth-select').value;
         const resp = await fetch('/api/youtube/comments/fetch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ video_id: videoInput }),
+            body: JSON.stringify({ video_id: videoInput, max_depth: parseInt(depth) }),
         });
         const data = await resp.json();
         if (!resp.ok) {
@@ -313,9 +320,13 @@ async function loadComments(videoId) {
 
         let html = '';
         for (const c of comments) {
-            const typeBadge = c.is_reply
-                ? '<span class="badge badge-reply">Resposta</span>'
-                : '<span class="badge badge-top">Principal</span>';
+            let typeLabel = 'Principal';
+            let badgeClass = 'badge-top';
+            if (c.is_reply) {
+                const level = c.reply_level || 1;
+                typeLabel = `Resposta N${level}`;
+                badgeClass = 'badge-reply';
+            }
             const published = c.published_at
                 ? new Date(c.published_at).toLocaleString('pt-BR')
                 : '—';
@@ -324,7 +335,7 @@ async function loadComments(videoId) {
                 <td class="comment-text">${escapeHtml(c.comment)}</td>
                 <td class="like-count">${c.like_count}</td>
                 <td>${c.reply_count}</td>
-                <td>${typeBadge}</td>
+                <td><span class="badge ${badgeClass}">${typeLabel}</span></td>
                 <td>${published}</td>
             </tr>`;
         }
