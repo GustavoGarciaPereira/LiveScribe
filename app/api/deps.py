@@ -76,6 +76,31 @@ def get_chat_service(db: Session = Depends(get_db)) -> ChatService:
     )
 
 
+def get_current_user_optional(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
+    db: Session = Depends(get_db),
+):
+    """Similar a get_current_user, mas retorna None em vez de 401."""
+    token = None
+    if credentials:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get("access_token")
+
+    if not token:
+        return None
+
+    from app.models.user import User
+    from app.services.auth import verify_token
+
+    user_id = verify_token(token)
+    if user_id is None:
+        return None
+    user = db.query(User).filter(User.id == user_id).first()
+    return user
+
+
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),

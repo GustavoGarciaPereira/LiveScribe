@@ -9,9 +9,9 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -23,7 +23,7 @@ from app.api.routes.chat import router as chat_router
 from app.api.routes.reports import router as reports_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.youtube_comments import router as youtube_comments_router
-from app.api.deps import init_report_queue
+from app.api.deps import get_current_user_optional, init_report_queue
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.infrastructure.database import Base, engine
@@ -137,7 +137,9 @@ def create_application() -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     @app.get("/dashboard", response_class=HTMLResponse)
-    async def dashboard():
+    async def dashboard(user=Depends(get_current_user_optional)):
+        if user is None:
+            return RedirectResponse(url="/login?next=/dashboard", status_code=303)
         dashboard_html = (Path(__file__).parent / "templates" / "dashboard.html").read_text(encoding="utf-8")
         return dashboard_html
 
@@ -146,8 +148,15 @@ def create_application() -> FastAPI:
         landing_html = (Path(__file__).parent / "templates" / "landing.html").read_text(encoding="utf-8")
         return landing_html
 
+    @app.get("/login", response_class=HTMLResponse)
+    async def login_page():
+        login_html = (Path(__file__).parent / "templates" / "login.html").read_text(encoding="utf-8")
+        return login_html
+
     @app.get("/youtube-comments", response_class=HTMLResponse)
-    async def youtube_comments_page():
+    async def youtube_comments_page(user=Depends(get_current_user_optional)):
+        if user is None:
+            return RedirectResponse(url="/login?next=/youtube-comments", status_code=303)
         return (Path(__file__).parent / "templates" / "youtube_comments.html").read_text(encoding="utf-8")
 
     @app.get("/favicon.ico", response_class=HTMLResponse)

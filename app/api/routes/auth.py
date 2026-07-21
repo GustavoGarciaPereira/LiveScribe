@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import HTMLResponse
 from httpx_oauth.clients.google import GoogleOAuth2
 from sqlalchemy.orm import Session
 
@@ -93,8 +94,13 @@ async def login_google():
     return {"url": authorization_url}
 
 
-@router.get("/callback/google", response_model=TokenResponse)
-async def callback_google(code: str, response: Response, db: Session = Depends(get_db)):
+@router.get("/callback/google")
+async def callback_google(
+    code: str,
+    response: Response,
+    state: str = "/dashboard",
+    db: Session = Depends(get_db),
+):
     redirect_uri = settings.GOOGLE_REDIRECT_URI
     token = await google_oauth.get_access_token(code, redirect_uri)
     user_info = await google_oauth.get_id_email(token["access_token"])
@@ -121,7 +127,17 @@ async def callback_google(code: str, response: Response, db: Session = Depends(g
 
     token_response = _build_response(user)
     _set_auth_cookie(response, token_response.access_token)
-    return token_response
+
+    # Redireciona para a página original após login
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>Redirecionando...</title>
+<meta http-equiv="refresh" content="0;url={state}">
+</head><body>
+<p>Redirecionando para <a href="{state}">{state}</a>...</p>
+</body></html>"""
+    return HTMLResponse(content=html)
 
 
 # ── Perfil ────────────────────────────────────────────────────

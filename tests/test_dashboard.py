@@ -12,16 +12,22 @@ HARNESS_PATH = os.path.join(os.path.dirname(__file__), "_dashboard_auth_harness.
 
 
 class TestDashboard:
-    def test_returns_200(self, client):
-        response = client.get("/dashboard")
+    def test_redirects_to_login_when_not_authenticated(self, client):
+        """Sem auth, /dashboard redireciona para /login."""
+        response = client.get("/dashboard", follow_redirects=False)
+        assert response.status_code == 303
+        assert "/login" in response.headers.get("location", "")
+
+    def test_returns_200_when_authenticated(self, auth_client):
+        response = auth_client.get("/dashboard")
         assert response.status_code == 200
 
-    def test_contains_title(self, client):
-        response = client.get("/dashboard")
+    def test_contains_title_when_authenticated(self, auth_client):
+        response = auth_client.get("/dashboard")
         assert "PulsoDaLive" in response.text
 
-    def test_contains_new_sections(self, client):
-        response = client.get("/dashboard")
+    def test_contains_new_sections(self, auth_client):
+        response = auth_client.get("/dashboard")
         html = response.text
         assert "emojis-chart" in html
         assert "top-authors-list" in html
@@ -41,9 +47,9 @@ class TestDashboard:
         assert "filter-bar" in html
         assert "term-tags-container" in html
 
-    def test_contains_new_js_functions(self, client):
+    def test_contains_new_js_functions(self, auth_client):
         """Os nomes das funcoes JS devem estar no arquivo dashboard.js carregado."""
-        response = client.get("/dashboard")
+        response = auth_client.get("/dashboard")
         html = response.text
         # Verifica que o JS externo eh carregado
         assert "src=\"/static/js/dashboard.js\"" in html
@@ -65,9 +71,9 @@ class TestDashboard:
         assert "loadSarcasm" in js
         assert "loadAspects" in js
 
-    def test_contains_ux_improvements(self, client):
+    def test_contains_ux_improvements(self, auth_client):
         """Elementos de UX devem estar presentes no HTML (classes CSS e IDs)."""
-        response = client.get("/dashboard")
+        response = auth_client.get("/dashboard")
         html = response.text
         import os
         css_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'css', 'dashboard.css')
@@ -95,9 +101,9 @@ class TestDashboard:
         assert "loadSentimentSummary" in js
         assert "renderSentimentStats" in js
 
-    def test_contains_get_headers_function(self, client):
+    def test_contains_get_headers_function(self, auth_client):
         """getHeaders precisa estar declarada no escopo global no dashboard.js."""
-        response = client.get("/dashboard")
+        response = auth_client.get("/dashboard")
         html = response.text
         assert "src=\"/static/js/dashboard.js\"" in html
         import os
