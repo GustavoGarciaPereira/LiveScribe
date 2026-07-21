@@ -216,3 +216,40 @@ class AspectSentimentItem(BaseModel):
 class AspectSentimentResponse(BaseModel):
     live_id: str
     aspects: dict[str, AspectSentimentItem]
+
+
+# ── YouTube Comments ───────────────────────────────────────────
+
+class YouTubeCommentResponse(BaseModel):
+    id: int
+    video_id: str
+    video_title: str | None = None
+    author: str
+    comment: str
+    like_count: int = 0
+    reply_count: int = 0
+    is_reply: bool = False
+    parent_id: str | None = None
+    published_at: str | None = None
+    collected_at: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class YouTubeVideoSummary(BaseModel):
+    video_id: str
+    video_title: str | None = None
+    total_comments: int
+    collected_at: str | None = None
+
+
+class YouTubeVideoListResponse(BaseModel):
+    videos: list[YouTubeVideoSummary]
+
+
+class YouTubeFetchResponse(BaseModel):
+    video_id: str
+    video_title: str | None = None
+    total_comments: int
+    total_replies: int
+    total_items: int

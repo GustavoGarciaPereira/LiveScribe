@@ -3,6 +3,7 @@ uvicorn
 sqlalchemy
 pydantic
 pydantic-settings
+python-dotenv
 email-validator
 transformers
 leia-br
@@ -36,6 +37,9 @@ youtube-transcript-api
 
 # PDF
 weasyprint
+
+# YouTube Data API
+google-api-python-client
 
 # Gráficos
 matplotlib

@@ -1,6 +1,11 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Carrega .env ANTES de qualquer import que use settings
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
@@ -14,10 +19,13 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.reports import router as reports_router
 from app.api.routes.webhooks import router as webhooks_router
+from app.api.routes.youtube_comments import router as youtube_comments_router
 from app.api.deps import init_report_queue
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.infrastructure.database import Base, engine
+# Importa modelos para criar tabelas no lifespan
+from app.models import YouTubeComment  # noqa: F401
 
 
 def _migrate_legacy_db():
@@ -108,6 +116,7 @@ def create_application() -> FastAPI:
     app.include_router(chat_router, prefix=settings.API_PREFIX)
     app.include_router(reports_router, prefix=settings.API_PREFIX)
     app.include_router(webhooks_router, prefix=settings.API_PREFIX)
+    app.include_router(youtube_comments_router, prefix=settings.API_PREFIX)
 
     # Serve arquivos estaticos (CSS, JS)
     static_dir = Path(__file__).parent / "static"
@@ -123,6 +132,10 @@ def create_application() -> FastAPI:
     async def landing():
         landing_html = (Path(__file__).parent / "templates" / "landing.html").read_text(encoding="utf-8")
         return landing_html
+
+    @app.get("/youtube-comments", response_class=HTMLResponse)
+    async def youtube_comments_page():
+        return (Path(__file__).parent / "templates" / "youtube_comments.html").read_text(encoding="utf-8")
 
     @app.get("/favicon.ico", response_class=HTMLResponse)
     async def favicon():

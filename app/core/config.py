@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/callback/google"
 
+    # YouTube Data API (obrigatório — defina no .env)
+    YOUTUBE_API_KEY: str = ""
+
     @model_validator(mode="after")
     def _validate_secret_key(self):
         """Exige SECRET_KEY segura em qualquer ambiente que não seja dev local."""

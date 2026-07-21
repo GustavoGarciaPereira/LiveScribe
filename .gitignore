@@ -26,3 +26,7 @@ data/app.db-shm
 reasonix.toml
 .claude/settings.json
 session-20260711-023514.md
+
+# Environment credentials
+.env
+session-20260720-233639.md

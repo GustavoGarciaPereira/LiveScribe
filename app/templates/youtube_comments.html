@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📺 Comentários de Vídeos — PulsoDaLive</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+            integrity="sha384-rHMRmGcOA47EwxVvX1ZgQy9MDMy5q1gEH8Zx5SpwO3MiCRh3OWq2fF/9oOhHj+k"
+            crossorigin="anonymous"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a; color: #e2e8f0; min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
+        h1 { font-size: 1.75rem; margin-bottom: 2rem; color: #f1f5f9; }
+        h1 span { color: #3b82f6; }
+        .card {
+            background: #1e293b; border-radius: 12px; padding: 1.5rem;
+            margin-bottom: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+        .card-header {
+            font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;
+            color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .input-group {
+            display: flex; gap: 0.75rem; flex-wrap: wrap;
+        }
+        .input-group input {
+            flex: 1; min-width: 250px; padding: 0.75rem 1rem;
+            background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+            color: #e2e8f0; font-size: 1rem; outline: none;
+        }
+        .input-group input:focus { border-color: #3b82f6; }
+        .btn {
+            padding: 0.75rem 1.5rem; border: none; border-radius: 8px;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: #334155; color: #e2e8f0; }
+        .btn-secondary:hover { background: #475569; }
+        .btn-danger { background: #ef4444; color: white; font-size: 0.75rem; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+
+        /* Status / progresso */
+        #status {
+            margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 8px;
+            display: none; font-size: 0.9rem;
+        }
+        #status.loading { display: block; background: #1e3a5f; color: #93c5fd; }
+        #status.success { display: block; background: #14532d; color: #86efac; }
+        #status.error { display: block; background: #450a0a; color: #fca5a5; }
+
+        .progress-bar {
+            width: 100%; height: 4px; background: #334155; border-radius: 2px;
+            margin-top: 0.75rem; overflow: hidden;
+        }
+        .progress-bar.active .progress-fill {
+            width: 100%; height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            animation: progress-anim 1.5s ease-in-out infinite;
+        }
+        @keyframes progress-anim {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* Selector de vídeos */
+        #video-selector {
+            width: 100%; padding: 0.75rem 1rem;
+            background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+            color: #e2e8f0; font-size: 1rem; outline: none;
+            cursor: pointer;
+        }
+        #video-selector:focus { border-color: #3b82f6; }
+
+        .video-actions {
+            display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        /* Tabela */
+        .table-wrapper { overflow-x: auto; }
+        table {
+            width: 100%; border-collapse: collapse; font-size: 0.9rem;
+        }
+        th, td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid #334155; }
+        th { background: #0f172a; color: #94a3b8; font-weight: 600; position: sticky; top: 0; }
+        tr:hover td { background: rgba(59,130,246,0.05); }
+        .badge {
+            display: inline-block; padding: 0.15rem 0.5rem;
+            border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+        }
+        .badge-reply { background: #374151; color: #9ca3af; }
+        .badge-top { background: #1e3a5f; color: #93c5fd; }
+        .comment-text { max-width: 400px; word-break: break-word; }
+        .like-count { color: #fbbf24; font-weight: 600; }
+
+        .empty-state {
+            text-align: center; padding: 3rem 1rem; color: #64748b;
+        }
+        .empty-state p { margin-top: 0.5rem; }
+        .empty-state .big-emoji { font-size: 3rem; margin-bottom: 1rem; }
+
+        .nav-link {
+            display: inline-block; margin-bottom: 1rem; color: #3b82f6;
+            text-decoration: none; font-size: 0.9rem;
+        }
+        .nav-link:hover { text-decoration: underline; }
+
+        @media (max-width: 640px) {
+            .container { padding: 1rem 0.5rem; }
+            .input-group { flex-direction: column; }
+            .input-group input { min-width: auto; }
+            .comment-text { max-width: 200px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="/dashboard" class="nav-link">← Voltar ao Dashboard</a>
+    <h1>📺 Comentários de <span>Vídeos</span></h1>
+
+    <!-- Coletar comentários -->
+    <div class="card">
+        <div class="card-header">🔍 Coletar Comentários</div>
+        <div class="input-group">
+            <input type="text" id="video-input" placeholder="Cole a URL ou ID do vídeo do YouTube" autocomplete="off">
+            <button class="btn btn-primary" id="fetch-btn">Buscar comentários</button>
+        </div>
+        <div class="hint" style="margin-top:0.5rem;color:#64748b;font-size:0.85rem;">
+            Ex: https://www.youtube.com/watch?v=dQw4w9WgXcQ ou apenas dQw4w9WgXcQ
+        </div>
+        <div id="status"></div>
+    </div>
+
+    <!-- Vídeos coletados -->
+    <div class="card">
+        <div class="card-header">📋 Vídeos Coletados</div>
+        <div class="video-actions">
+            <select id="video-selector">
+                <option value="">— Selecione um vídeo —</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="load-btn">Carregar comentários</button>
+            <button class="btn btn-secondary btn-sm" id="export-btn" disabled>📥 Exportar CSV</button>
+            <button class="btn btn-secondary btn-sm" id="refresh-btn">🔄 Atualizar lista</button>
+        </div>
+    </div>
+
+    <!-- Tabela de comentários -->
+    <div class="card" id="comments-card" style="display:none;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>💬 Comentários</span>
+            <span id="comment-count" style="font-size:0.85rem;color:#94a3b8;">0 comentários</span>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Autor</th>
+                        <th>Comentário</th>
+                        <th>👍 Likes</th>
+                        <th>💬 Resp.</th>
+                        <th>Tipo</th>
+                        <th>Publicado</th>
+                    </tr>
+                </thead>
+                <tbody id="comments-body">
+                    <tr><td colspan="6" class="empty-state">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Utilitários ───────────────────────────────────────────────
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function setStatus(msg, type) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = type; // loading, success, error
+    el.style.display = 'block';
+    if (type === 'loading') {
+        const bar = document.createElement('div');
+        bar.className = 'progress-bar active';
+        bar.innerHTML = '<div class="progress-fill"></div>';
+        el.appendChild(bar);
+    }
+}
+
+function clearStatus() {
+    const el = document.getElementById('status');
+    el.style.display = 'none';
+    el.className = '';
+    el.innerHTML = '';
+}
+
+// ── Coleta ────────────────────────────────────────────────────
+
+document.getElementById('fetch-btn').addEventListener('click', async () => {
+    const videoInput = document.getElementById('video-input').value.trim();
+    if (!videoInput) {
+        setStatus('Digite a URL ou ID do vídeo.', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('fetch-btn');
+    btn.disabled = true;
+    setStatus('Buscando comentários da API do YouTube...', 'loading');
+
+    try {
+        const resp = await fetch('/api/youtube/comments/fetch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ video_id: videoInput }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            setStatus(`Erro: ${data.detail || 'Falha na coleta'}`, 'error');
+            return;
+        }
+        setStatus(
+            `✅ Coleta concluída! ${data.total_comments} comentários principais e ${data.total_replies} respostas (${data.total_items} itens no total).`,
+            'success'
+        );
+        document.getElementById('video-input').value = '';
+        await loadVideoList();
+        // Seleciona o vídeo recém-coletado
+        const sel = document.getElementById('video-selector');
+        for (let opt of sel.options) {
+            if (opt.value === data.video_id) {
+                sel.value = data.video_id;
+                break;
+            }
+        }
+    } catch (err) {
+        setStatus(`Erro de conexão: ${err.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+// ── Listar vídeos ─────────────────────────────────────────────
+
+async function loadVideoList() {
+    const sel = document.getElementById('video-selector');
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">— Selecione um vídeo —</option>';
+
+    try {
+        const resp = await fetch('/api/youtube/comments');
+        if (!resp.ok) {
+            console.error('Erro ao listar vídeos');
+            return;
+        }
+        const data = await resp.json();
+        for (const v of data.videos || []) {
+            const opt = document.createElement('option');
+            opt.value = v.video_id;
+            opt.textContent = `${v.video_title || v.video_id} (${v.total_comments} comentários)`;
+            sel.appendChild(opt);
+        }
+        if (currentVal) {
+            for (let opt of sel.options) {
+                if (opt.value === currentVal) {
+                    sel.value = currentVal;
+                    break;
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Erro:', err);
+    }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', loadVideoList);
+
+// ── Carregar comentários ──────────────────────────────────────
+
+async function loadComments(videoId) {
+    const tbody = document.getElementById('comments-body');
+    const card = document.getElementById('comments-card');
+    const countEl = document.getElementById('comment-count');
+
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Carregando...</td></tr>';
+    card.style.display = 'block';
+
+    try {
+        const resp = await fetch(`/api/youtube/comments/${videoId}`);
+        if (!resp.ok) {
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nenhum comentário encontrado.</td></tr>`;
+            return;
+        }
+        const comments = await resp.json();
+        countEl.textContent = `${comments.length} comentários`;
+
+        if (comments.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum comentário encontrado.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        for (const c of comments) {
+            const typeBadge = c.is_reply
+                ? '<span class="badge badge-reply">Resposta</span>'
+                : '<span class="badge badge-top">Principal</span>';
+            const published = c.published_at
+                ? new Date(c.published_at).toLocaleString('pt-BR')
+                : '—';
+            html += `<tr>
+                <td><strong>${escapeHtml(c.author)}</strong></td>
+                <td class="comment-text">${escapeHtml(c.comment)}</td>
+                <td class="like-count">${c.like_count}</td>
+                <td>${c.reply_count}</td>
+                <td>${typeBadge}</td>
+                <td>${published}</td>
+            </tr>`;
+        }
+        tbody.innerHTML = html;
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Erro: ${escapeHtml(err.message)}</td></tr>`;
+    }
+}
+
+document.getElementById('load-btn').addEventListener('click', () => {
+    const sel = document.getElementById('video-selector');
+    const videoId = sel.value;
+    const exportBtn = document.getElementById('export-btn');
+    if (!videoId) return;
+    loadComments(videoId);
+    exportBtn.disabled = false;
+    exportBtn.dataset.videoId = videoId;
+});
+
+// ── Exportar CSV ──────────────────────────────────────────────
+
+document.getElementById('export-btn').addEventListener('click', () => {
+    const videoId = document.getElementById('export-btn').dataset.videoId;
+    if (!videoId) return;
+    window.location.href = `/api/youtube/comments/${videoId}/export?format=csv`;
+});
+
+// ── Enter no input ────────────────────────────────────────────
+
+document.getElementById('video-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('fetch-btn').click();
+});
+
+// ── Init ──────────────────────────────────────────────────────
+
+loadVideoList();
+</script>
+</body>
+</html>
